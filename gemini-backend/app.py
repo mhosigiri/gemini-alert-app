@@ -18,8 +18,12 @@ if DEBUG:
     # In development, allow all origins
     CORS(app, resources={r"/*": {"origins": "*", "supports_credentials": True}})
 else:
-    # In production, restrict origins (update with your production domain)
-    CORS(app, resources={r"/*": {"origins": ["https://your-domain.com"], "supports_credentials": True}})
+    # In production, allow the Vercel frontend domain
+    CORS(app, resources={r"/*": {"origins": [
+        "https://gemini-alert-app.vercel.app",
+        "https://gemini-alert-backend.vercel.app", 
+        "https://your-domain.com"
+    ], "supports_credentials": True}})
 
 # Configure Gemini API
 GEMINI_API_KEY = "AIzaSyD9t-pWBqbZoFBoGvROkD1YS5dxYBzZE40"
@@ -282,9 +286,25 @@ def add_cors_headers(response):
     if DEBUG:
         response.headers.add('Access-Control-Allow-Origin', '*')
     else:
-        response.headers.add('Access-Control-Allow-Origin', 'https://your-domain.com')
+        # Check the origin header and match it to our allowed origins
+        origin = request.headers.get('Origin')
+        allowed_origins = [
+            'https://gemini-alert-app.vercel.app',
+            'https://gemini-alert-backend.vercel.app',
+            'https://your-domain.com'
+        ]
+        if origin in allowed_origins:
+            response.headers.add('Access-Control-Allow-Origin', origin)
+        # Default fallback
+        else:
+            response.headers.add('Access-Control-Allow-Origin', 'https://gemini-alert-app.vercel.app')
+            
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    # Handle preflight requests
+    if request.method == 'OPTIONS':
+        response.headers.add('Access-Control-Max-Age', '3600')
     return response
 
 if __name__ == '__main__':

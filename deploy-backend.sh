@@ -54,9 +54,41 @@ GEMINI_API_KEY=your_gemini_api_key
 FIREBASE_SERVICE_ACCOUNT=your_firebase_service_account_json_base64
 EOF
 
+# Create vercel.json for Vercel deployment
+echo -e "${BLUE}Creating vercel.json for Vercel deployment...${NC}"
+cat > $DEPLOY_DIR/vercel.json << EOF
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "app.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "app.py"
+    }
+  ],
+  "env": {
+    "FLASK_ENV": "production"
+  }
+}
+EOF
+
 echo -e "${GREEN}Deployment package prepared in $DEPLOY_DIR${NC}"
 echo -e "${GREEN}Now you can deploy this directory to your hosting provider${NC}"
-echo -e "${BLUE}For example with Heroku:${NC}"
+
+echo -e "${BLUE}For Vercel deployment:${NC}"
+echo -e "  cd $DEPLOY_DIR"
+echo -e "  vercel login (if not already logged in)"
+echo -e "  vercel --prod"
+echo -e "  # Set environment variables in Vercel dashboard:"
+echo -e "  # - GEMINI_API_KEY"
+echo -e "  # - FIREBASE_SERVICE_ACCOUNT"
+
+echo -e "${BLUE}For Heroku deployment:${NC}"
 echo -e "  cd $DEPLOY_DIR"
 echo -e "  git init"
 echo -e "  git add ."
