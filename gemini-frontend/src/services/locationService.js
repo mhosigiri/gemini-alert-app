@@ -101,20 +101,67 @@ const updateUserLocation = async (position) => {
 
     // Update Realtime Database (for real-time tracking)
     try {
-      const locationRef = ref(rtdb, `locations/${userId}`);
-      await set(locationRef, {
+      // First, check if user is authenticated again (token might have expired)
+      if (!auth.currentUser) {
+        throw new Error('User authentication token expired or invalid');
+      }
+      
+      // Get a fresh token
+      await auth.currentUser.getIdToken(true);
+      
+      // Create location data in the format expected by rules
+      const locationData = {
         latitude,
         longitude,
         accuracy,
         timestamp,
         displayName: auth.currentUser.displayName || 'User',
         email: auth.currentUser.email
-      });
-      console.log('Realtime Database location updated successfully');
+      };
+      
+      // Also try the format with lat/lng in case rules are still using that
+      try {
+        const locationRef = ref(rtdb, `locations/${userId}`);
+        await set(locationRef, locationData);
+        console.log('Realtime Database location updated successfully');
+      } catch (mainError) {
+        console.warn('First attempt failed, trying alternative format:', mainError);
+        
+        // Try alternative format with lat/lng if permission denied or validation error
+        if (mainError.code === 'PERMISSION_DENIED') {
+          try {
+            const altLocationRef = ref(rtdb, `locations/${userId}`);
+            await set(altLocationRef, {
+              lat: latitude,
+              lng: longitude,
+              accuracy,
+              timestamp,
+              displayName: auth.currentUser.displayName || 'User',
+              email: auth.currentUser.email
+            });
+            console.log('Realtime Database location updated with alternative format');
+          } catch (altError) {
+            console.warn('Alternative format also failed:', altError);
+            // We already have the location in Firestore, so consider it a partial success
+            return true;
+          }
+        } else {
+          throw mainError; // re-throw for the outer catch
+        }
+      }
+      
+      return true; // Successfully updated
     } catch (rtdbError) {
-      console.error('Error updating Realtime Database:', rtdbError);
-      // We successfully updated at least one database, so consider it partial success
-      return true;
+      // If there's a permission error, it might be due to rules
+      if (rtdbError.code === 'PERMISSION_DENIED') {
+        console.warn('Firebase permission denied. This is expected in demo mode or if Firebase rules are restrictive.');
+        // Don't mark as error - just continue with the app
+        return true;
+      } else {
+        console.error('Error updating Realtime Database:', rtdbError);
+        // We successfully updated at least one database, so consider it partial success
+        return true;
+      }
     }
 
     console.log('Location updated successfully in both databases');

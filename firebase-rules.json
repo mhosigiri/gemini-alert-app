@@ -1,22 +1,50 @@
 {
   "rules": {
-    ".read": true,
-    ".write": true,
-    "users": {
-      ".read": true,
-      ".write": true
-    },
     "locations": {
-      ".read": true,
-      ".write": true
+      ".read": "auth !== null",
+      ".write": "auth !== null",
+      "$uid": {
+        ".read": "auth !== null",
+        ".write": "auth !== null",
+        "latitude": { ".validate": "newData.isNumber()" },
+        "longitude": { ".validate": "newData.isNumber()" },
+        "accuracy": { ".validate": "newData.isNumber()" },
+        "timestamp": { ".validate": "newData.isNumber() && newData.val() <= now" },
+        "displayName": { ".validate": "newData.isString()" },
+        "email": { ".validate": "newData.isString()" }
+      }
     },
     "alerts": {
-      ".read": true,
-      ".write": true
+      ".read": "auth !== null",
+      ".write": "auth !== null",
+      "$alertId": {
+        ".read": "auth !== null",
+        ".write": "auth !== null",
+        "userId": { ".validate": "newData.isString()" },
+        "userName": { ".validate": "newData.isString() || !newData.hasChild('userName')" },
+        "message": { ".validate": "newData.isString()" },
+        "emergencyType": { ".validate": "newData.isString()" },
+        "createdAt": { ".validate": "true" },
+        "coordinates": {
+          "latitude": { ".validate": "newData.isNumber()" },
+          "longitude": { ".validate": "newData.isNumber()" }
+        },
+        "responses": {
+          "$userId": {
+            ".write": "auth !== null",
+            "message": { ".validate": "newData.isString()" },
+            "timestamp": { ".validate": "newData.val() <= now" }
+          }
+        }
+      }
     },
     "notifications": {
-      ".read": true,
-      ".write": true
+      ".read": "auth !== null",
+      ".write": "auth !== null",
+      "$uid": {
+        ".read": "auth !== null",
+        ".write": "auth !== null"
+      }
     }
   }
 }
