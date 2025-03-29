@@ -28,7 +28,7 @@ else:
 # Configure Gemini API
 GEMINI_API_KEY = "AIzaSyD9t-pWBqbZoFBoGvROkD1YS5dxYBzZE40"
 GEMINI_MODEL = "gemini-2.5-pro-exp-03-25"
-GEMINI_AVAILABLE = True
+GEMINI_AVAILABLE = False
 
 # More realistic emergency response when API isn't available
 MOCK_GEMINI_RESPONSE = """

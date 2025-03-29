@@ -1,18 +1,10 @@
 import { auth } from '../firebase'
 
-// Check if we're in production on Vercel
-const isVercelProduction = window.location.hostname.includes('vercel.app');
+// Base URL for API requests - always use the environment variable or fallback to localhost
+const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://localhost:5001';
 
-// Base URL for API requests - use mock service in production on Vercel
-let API_BASE_URL;
-if (isVercelProduction) {
-  console.log('Running on Vercel production - using mock Gemini service');
-  // We'll use a mock implementation instead of an actual endpoint
-  API_BASE_URL = null;
-} else {
-  // Default to environment variable or localhost
-  API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://localhost:5001';
-}
+// Flag to determine if we should fall back to client-side responses if API is unreachable
+const useClientFallback = true;
 
 // Fallback response when the backend is unavailable
 const FALLBACK_RESPONSE = `
@@ -102,17 +94,15 @@ Being prepared and remaining calm are your best tools in any emergency.
  * @returns {Promise<string>} - The response from Gemini
  */
 export const askGemini = async (question) => {
-  // Special handling for Vercel deployment - generate responses locally
-  if (isVercelProduction) {
-    return generateMockResponse(question);
-  }
-  
   try {
     // Get the current user's auth token
     const token = await auth.currentUser.getIdToken()
     
     // Try to fetch from backend
     try {
+      // Log the API URL we're using
+      console.log(`Making API request to: ${API_BASE_URL}/ask`);
+      
       const response = await fetch(`${API_BASE_URL}/ask`, {
         method: 'POST',
         headers: {
@@ -125,19 +115,32 @@ export const askGemini = async (question) => {
       })
       
       if (!response.ok) {
+        console.warn(`API response not OK: ${response.status}`);
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to get response from Gemini')
+        throw new Error(errorData.error || `Failed to get response from Gemini API: ${response.status}`)
       }
       
       const data = await response.json()
       return data.response
     } catch (fetchError) {
-      console.warn('Backend fetch failed, using fallback response:', fetchError)
-      return generateMockResponse(question);
+      console.warn('Backend fetch failed:', fetchError);
+      
+      // Only use client-side fallback if the flag is enabled
+      if (useClientFallback) {
+        console.log('Using client-side fallback response generator');
+        return generateMockResponse(question);
+      } else {
+        throw fetchError; // Re-throw if we don't want to use fallbacks
+      }
     }
   } catch (error) {
-    console.error('Error asking Gemini:', error)
-    return generateMockResponse(question);
+    console.error('Error asking Gemini:', error);
+    
+    if (useClientFallback) {
+      return generateMockResponse(question);
+    } else {
+      return `Sorry, there was an error connecting to Gemini: ${error.message}. Please try again later.`;
+    }
   }
 }
 
@@ -223,12 +226,6 @@ function generateMockResponse(question) {
  * @returns {Promise<void>}
  */
 export const askGeminiStream = async (question, onChunkReceived) => {
-  // Special handling for Vercel deployment - use local streaming simulation
-  if (isVercelProduction) {
-    simulateStreamingResponse(question, onChunkReceived);
-    return;
-  }
-  
   try {
     // Get the current user's auth token
     let token
@@ -236,12 +233,19 @@ export const askGeminiStream = async (question, onChunkReceived) => {
       token = await auth.currentUser.getIdToken()
     } catch (authError) {
       console.error('Auth error:', authError)
-      // Send fallback response in chunks
-      simulateStreamingResponse(question, onChunkReceived);
+      if (useClientFallback) {
+        // Send fallback response in chunks
+        simulateStreamingResponse(question, onChunkReceived);
+      } else {
+        onChunkReceived("Error getting authentication token. Please try again.");
+      }
       return
     }
     
     try {
+      // Log the API URL we're using for streaming
+      console.log(`Making streaming API request to: ${API_BASE_URL}/ask-stream`);
+      
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
       
@@ -258,9 +262,10 @@ export const askGeminiStream = async (question, onChunkReceived) => {
       clearTimeout(timeoutId);
       
       if (!response.ok) {
+        console.warn(`Streaming API response not OK: ${response.status}`);
         // Try to parse error response
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || `Failed to get response from Gemini: ${response.status}`)
+        throw new Error(errorData.error || `Failed to get streaming response: ${response.status}`)
       }
       
       // Set up reader for streaming
@@ -286,12 +291,23 @@ export const askGeminiStream = async (question, onChunkReceived) => {
         }
       }
     } catch (fetchError) {
-      console.warn('Streaming fetch failed, using AI-generated response:', fetchError)
-      simulateStreamingResponse(question, onChunkReceived);
+      console.warn('Streaming fetch failed:', fetchError)
+      
+      if (useClientFallback) {
+        console.log('Using client-side fallback streaming response');
+        simulateStreamingResponse(question, onChunkReceived);
+      } else {
+        onChunkReceived(`Sorry, there was an error connecting to the Gemini API: ${fetchError.message}. Please try again later.`);
+      }
     }
   } catch (error) {
     console.error('Error streaming from Gemini:', error)
-    simulateStreamingResponse(question, onChunkReceived);
+    
+    if (useClientFallback) {
+      simulateStreamingResponse(question, onChunkReceived);
+    } else {
+      onChunkReceived(`Error: ${error.message}. Please try again.`);
+    }
   }
 }
 
