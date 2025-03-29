@@ -20,11 +20,16 @@ const routes = [
     path: '/register',
     name: 'Register',
     component: Register
+  },
+  // Catch-all route for 404s - must be last
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/'
   }
 ]
 
 const router = createRouter({
-  history: createWebHistory(process.env.BASE_URL),
+  history: createWebHistory('/'),
   routes
 })
 
