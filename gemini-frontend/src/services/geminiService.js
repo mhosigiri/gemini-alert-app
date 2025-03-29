@@ -1,7 +1,7 @@
 import { auth } from '../firebase';
 
 const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://localhost:5001';
-const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro';
+const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash';
 const SECURE_API_KEY = 'AIzaSyD9t-pWBqbZoFBoGvROkD1YS5dxYBzZE40';
 
 /**
@@ -11,6 +11,7 @@ const SECURE_API_KEY = 'AIzaSyD9t-pWBqbZoFBoGvROkD1YS5dxYBzZE40';
  */
 export const askGemini = async (question) => {
   try {
+    console.log('Making request to Gemini 2.0 Flash API');
     // Make direct request to Gemini API
     const response = await fetch(`${GEMINI_BASE_URL}:generateContent?key=${SECURE_API_KEY}`, {
       method: 'POST',
@@ -18,25 +19,46 @@ export const askGemini = async (question) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        contents: [{
-          parts: [{ text: question }],
-        }],
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: question }],
+          }
+        ],
+        generationConfig: {
+          temperature: 0.7,
+          topK: 20,
+          topP: 0.9,
+          maxOutputTokens: 800,
+        }
       }),
       signal: AbortSignal.timeout(10000) // 10 second timeout
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('Gemini API error:', errorData);
-      throw new Error(errorData.error || `Failed to get response from Gemini API: ${response.status}`);
+      console.error('Gemini API response not OK:', response.status);
+      const errorText = await response.text().catch(() => 'Unknown error');
+      console.error('Error text:', errorText);
+      
+      // Try to parse error as JSON
+      let errorDetail = 'Unknown error';
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorDetail = errorJson.error?.message || errorJson.error || errorText;
+      } catch (e) {
+        errorDetail = errorText;
+      }
+      
+      throw new Error(`API Error (${response.status}): ${errorDetail}`);
     }
 
     const data = await response.json();
+    console.log('Gemini API response:', data);
     const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
     return responseText || 'No response from Gemini.';
   } catch (error) {
     console.error('Error asking Gemini:', error);
-    return `Sorry, there was an error connecting to Gemini: ${error.message}. Please try again later.`;
+    return `Sorry, there was an error connecting to Gemini. Please try again later.`;
   }
 }
 
@@ -48,62 +70,85 @@ export const askGemini = async (question) => {
  */
 export const askGeminiStream = async (question, onChunkReceived) => {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    // For now, use the non-streaming API and simulate chunking
+    // since direct streaming from browser to Gemini API may have CORS issues
+    onChunkReceived("Connecting to Gemini...");
+    console.log('Making streaming request to Gemini 2.0 Flash API');
     
-    const response = await fetch(`${GEMINI_BASE_URL}:streamGenerateContent?key=${SECURE_API_KEY}`, {
+    const response = await fetch(`${GEMINI_BASE_URL}:generateContent?key=${SECURE_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        contents: [{
-          parts: [{ text: question }],
-        }],
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: question }],
+          }
+        ],
+        generationConfig: {
+          temperature: 0.7,
+          topK: 20,
+          topP: 0.9,
+          maxOutputTokens: 800,
+        }
       }),
-      signal: controller.signal
+      signal: AbortSignal.timeout(10000) // 10 second timeout
     });
-    
-    clearTimeout(timeoutId);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('Gemini API streaming error:', errorData);
-      throw new Error(errorData.error || `Failed to get streaming response from Gemini: ${response.status}`);
-    }
-
-    const reader = response.body?.getReader();
-    const decoder = new TextDecoder('utf-8');
-
-    if (!reader) {
-      console.error('Could not get reader for streaming response.');
-      return;
-    }
-
-    let streamActive = true;
-    while (streamActive) {
-      const { done, value } = await reader.read();
-      if (done) {
-        streamActive = false;
-        break;
-      }
-      const chunk = decoder.decode(value);
+      console.error('Gemini API response not OK:', response.status);
+      const errorText = await response.text().catch(() => 'Unknown error');
+      console.error('Error text:', errorText);
+      
+      // Try to parse error as JSON
+      let errorDetail = 'Unknown error';
       try {
-        // The streaming response is a series of JSON objects
-        const jsonChunks = chunk.split('\n').filter(line => line.trim() !== '');
-        for (const jsonChunk of jsonChunks) {
-          const parsed = JSON.parse(jsonChunk);
-          const textChunk = parsed?.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (textChunk) {
-            onChunkReceived(textChunk);
-          }
-        }
+        const errorJson = JSON.parse(errorText);
+        errorDetail = errorJson.error?.message || errorJson.error || errorText;
+        console.error('Parsed error:', errorDetail);
       } catch (e) {
-        console.error('Error parsing streaming chunk:', e, chunk);
+        errorDetail = errorText;
+        console.error('Failed to parse error:', e);
       }
+      
+      throw new Error(`API Error (${response.status}): ${errorDetail}`);
+    }
+
+    const data = await response.json();
+    console.log('Gemini API response:', data);
+    const fullText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response from Gemini.';
+    
+    // Clear the "Connecting" message
+    onChunkReceived(" ");
+    
+    // Simulate streaming by sending it in chunks
+    const words = fullText.split(' ');
+    const chunks = [];
+    let currentChunk = '';
+    
+    // Group words into reasonable chunks
+    for (const word of words) {
+      if (currentChunk.length + word.length > 20) {  // Send ~20 chars at a time
+        chunks.push(currentChunk);
+        currentChunk = word + ' ';
+      } else {
+        currentChunk += word + ' ';
+      }
+    }
+    
+    if (currentChunk) {
+      chunks.push(currentChunk);
+    }
+    
+    // Send chunks with small delays to simulate streaming
+    for (const chunk of chunks) {
+      onChunkReceived(chunk);
+      await new Promise(resolve => setTimeout(resolve, 50)); // 50ms delay between chunks
     }
   } catch (error) {
     console.error('Error streaming from Gemini:', error);
-    onChunkReceived(`Sorry, there was an error connecting to the Gemini API: ${error.message}. Please try again later.`);
+    onChunkReceived(`Sorry, there was an error connecting to the Gemini API. Please try again later.`);
   }
 }

@@ -9,12 +9,3 @@ Gemini API configured successfully in development mode
  * Restarting with stat
  * Debugger is active!
  * Debugger PIN: 824-592-925
-127.0.0.1 - - [29/Mar/2025 17:31:41] "OPTIONS /ask-stream HTTP/1.1" 200 -
-127.0.0.1 - - [29/Mar/2025 17:31:47] "POST /ask-stream HTTP/1.1" 200 -
- * Detected change in '/Users/arniskc/Documents/gemini-alert/gemini-backend/app.py', reloading
-Gemini API configured successfully in development mode
- * Restarting with stat
- * Debugger is active!
- * Debugger PIN: 824-592-925
-/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/multiprocessing/resource_tracker.py:224: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown
-  warnings.warn('resource_tracker: There appear to be %d '
