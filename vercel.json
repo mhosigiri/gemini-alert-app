@@ -1,0 +1,8 @@
+{
+  "buildCommand": "./build.sh",
+  "outputDirectory": "gemini-frontend/dist",
+  "rewrites": [{ 
+    "source": "/(.*)", 
+    "destination": "/index.html" 
+  }]
+}

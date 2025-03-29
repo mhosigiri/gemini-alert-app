@@ -53,7 +53,17 @@ A emergency alert application that helps users send alerts to nearby people in e
 
 ## Deployment
 
-### Frontend Deployment (Firebase Hosting)
+### Vercel Deployment
+
+1. **Deploy to Vercel**:
+   - Connect your GitHub repository to Vercel
+   - Vercel will automatically use the configuration in `vercel.json`
+   - Make sure your project structure follows this repository's setup
+   - Set the following environment variables in the Vercel dashboard:
+     - `VUE_APP_API_BASE_URL`: URL of your backend API
+     - All your Firebase configuration variables
+
+### Firebase Hosting (Alternative)
 
 1. **Build the frontend**:
 
