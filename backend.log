@@ -1,17 +1,32 @@
-Using mock Gemini responses for development
+Gemini API configured successfully in development mode
  * Serving Flask app 'app'
  * Debug mode: on
 [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
  * Running on http://127.0.0.1:5001
+ * Running on http://10.232.72.255:5001
 [33mPress CTRL+C to quit[0m
  * Restarting with stat
  * Debugger is active!
  * Debugger PIN: 824-592-925
-127.0.0.1 - - [29/Mar/2025 15:19:27] "[31m[1mHEAD /ask HTTP/1.1[0m" 405 -
- * Detected change in '/Users/arniskc/Documents/gemini-alert/gemini-backend/app.py', reloading
-Using mock Gemini responses for development
- * Restarting with stat
- * Debugger is active!
- * Debugger PIN: 824-592-925
-127.0.0.1 - - [29/Mar/2025 15:20:24] "OPTIONS /ask HTTP/1.1" 200 -
-127.0.0.1 - - [29/Mar/2025 15:20:24] "POST /ask HTTP/1.1" 200 -
+127.0.0.1 - - [29/Mar/2025 16:50:07] "OPTIONS /ask-stream HTTP/1.1" 200 -
+127.0.0.1 - - [29/Mar/2025 16:50:11] "POST /ask-stream HTTP/1.1" 200 -
+Debugging middleware caught exception in streamed response at a point where response headers were already sent.
+Traceback (most recent call last):
+  File "/Users/arniskc/Documents/gemini-alert/venv/lib/python3.10/site-packages/werkzeug/wsgi.py", line 256, in __next__
+    return self._next()
+  File "/Users/arniskc/Documents/gemini-alert/venv/lib/python3.10/site-packages/werkzeug/wrappers/response.py", line 32, in _iter_encoded
+    for item in iterable:
+  File "/Users/arniskc/Documents/gemini-alert/venv/lib/python3.10/site-packages/flask/helpers.py", line 125, in generator
+    yield from gen
+  File "/Users/arniskc/Documents/gemini-alert/gemini-backend/app.py", line 229, in generate
+    if chunk.text:
+  File "/Users/arniskc/Documents/gemini-alert/venv/lib/python3.10/site-packages/google/generativeai/types/generation_types.py", line 479, in text
+    raise ValueError(msg)
+ValueError: Invalid operation: The `response.text` quick accessor requires the response to contain a valid `Part`, but none were returned. The candidate's [finish_reason](https://ai.google.dev/api/generate-content#finishreason) is 1.
+127.0.0.1 - - [29/Mar/2025 16:50:21] "OPTIONS /ask-stream HTTP/1.1" 200 -
+127.0.0.1 - - [29/Mar/2025 16:50:26] "POST /ask-stream HTTP/1.1" 200 -
+127.0.0.1 - - [29/Mar/2025 16:50:39] "OPTIONS /ask-stream HTTP/1.1" 200 -
+127.0.0.1 - - [29/Mar/2025 16:50:49] "POST /ask-stream HTTP/1.1" 200 -
+127.0.0.1 - - [29/Mar/2025 16:51:14] "OPTIONS /ask-stream HTTP/1.1" 200 -
+127.0.0.1 - - [29/Mar/2025 16:51:25] "POST /ask-stream HTTP/1.1" 200 -

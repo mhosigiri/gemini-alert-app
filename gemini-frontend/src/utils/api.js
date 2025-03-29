@@ -2,7 +2,7 @@ import axios from 'axios';
 import { auth } from '../firebase';
 
 // Base API URL
-const BASE_URL = 'http://localhost:5001';
+const BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://localhost:5001';
 
 // Create axios instance
 const api = axios.create({

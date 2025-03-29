@@ -263,12 +263,9 @@ export const findNearbyUsers = async (radius = 5) => { // radius in kilometers
 };
 
 // Helper function to get mock nearby users
-const getMockNearbyUsers = (lat = 37.7749, lng = -122.4194) => {
-  return [
-    { uid: 'mock1', displayName: 'Demo User 1', distance: 0.8, latitude: lat + 0.01, longitude: lng - 0.01 },
-    { uid: 'mock2', displayName: 'Demo User 2', distance: 1.5, latitude: lat - 0.01, longitude: lng + 0.02 },
-    { uid: 'mock3', displayName: 'Demo User 3', distance: 2.3, latitude: lat + 0.02, longitude: lng + 0.01 }
-  ];
+const getMockNearbyUsers = (/* Removed unused parameters */) => {
+  // Return empty array instead of mock users
+  return [];
 };
 
 // Calculate distance between two points using Haversine formula

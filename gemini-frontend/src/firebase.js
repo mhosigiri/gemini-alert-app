@@ -6,16 +6,16 @@ import { getAuth } from "firebase/auth";
 import { getFirestore, doc, updateDoc } from "firebase/firestore";
 import { getDatabase } from "firebase/database";
 
-// Firebase configuration
+// Firebase configuration from environment variables
 const firebaseConfig = {
-  apiKey: "AIzaSyBUv1_PFKKTkChLe2QTBR0OS04Z9WxcA34",
-  authDomain: "gemini-alert.firebaseapp.com",
-  projectId: "gemini-alert",
-  storageBucket: "gemini-alert.appspot.com",
-  messagingSenderId: "122544434135",
-  appId: "1:122544434135:web:7c559f7121eada9fdfb992",
-  measurementId: "G-WM9KGWW1DR",
-  databaseURL: "https://gemini-alert-default-rtdb.firebaseio.com"
+  apiKey: process.env.VUE_APP_FIREBASE_CONFIG_API_KEY,
+  authDomain: process.env.VUE_APP_FIREBASE_CONFIG_AUTH_DOMAIN,
+  projectId: process.env.VUE_APP_FIREBASE_CONFIG_PROJECT_ID,
+  storageBucket: process.env.VUE_APP_FIREBASE_CONFIG_STORAGE_BUCKET,
+  messagingSenderId: process.env.VUE_APP_FIREBASE_CONFIG_MESSAGING_SENDER_ID,
+  appId: process.env.VUE_APP_FIREBASE_CONFIG_APP_ID,
+  measurementId: process.env.VUE_APP_FIREBASE_CONFIG_MEASUREMENT_ID,
+  databaseURL: process.env.VUE_APP_FIREBASE_CONFIG_DATABASE_URL
 };
 
 // Initialize Firebase
@@ -46,7 +46,7 @@ if (typeof window !== 'undefined') {
             if (permission === 'granted') {
               console.log('Notification permission granted.');
               // Get registration token for FCM
-              getToken(messaging, { vapidKey: 'BLb-SF1P5RvQcgLJf899-Yna4xWCQ-_XyBptnXa6joDYrXiTG3ZxDl1I5XlrfdM_nhRq-XBtX3fJ3ryT8t6pUgU' })
+              getToken(messaging, { vapidKey: process.env.VUE_APP_FIREBASE_VAPID_KEY || 'BLb-SF1P5RvQcgLJf899-Yna4xWCQ-_XyBptnXa6joDYrXiTG3ZxDl1I5XlrfdM_nhRq-XBtX3fJ3ryT8t6pUgU' })
                 .then((currentToken) => {
                   if (currentToken) {
                     console.log('FCM registration token:', currentToken);

@@ -1,87 +1,93 @@
 # Gemini Alert
 
-A crisis de-escalation web application that uses Google's Gemini AI to provide real-time guidance for managing stressful situations, anxiety, conflict, and other escalating scenarios.
+A emergency alert application that helps users send alerts to nearby people in emergency situations. Includes a Gemini AI-powered assistant for providing guidance and safety information.
 
 ## Features
 
-- **User Authentication**: Secure login and registration system using Firebase
-- **De-escalation Templates**: Pre-defined templates for common crisis situations
-- **AI-Powered Guidance**: Integration with Google's Gemini AI for personalized de-escalation strategies
-- **Real-time Assistance**: Immediate, step-by-step guidance for managing escalating situations
+- **Emergency Alerts**: Send emergency alerts to nearby users
+- **Location Tracking**: Track user locations and find nearby helpers
+- **Gemini AI Assistant**: Get safety advice and guidance from AI
+- **Voice Interface**: Ask questions and get responses with voice input/output
+- **Real-time Map**: View nearby users and alerts on an interactive map
+- **Firebase Integration**: Authentication, Firestore database, and Realtime Database
 
-## Project Structure
+## Tech Stack
 
-- **Backend**: Flask API that integrates with Gemini AI
-- **Frontend**: Vue.js application with a responsive UI
+- **Frontend**: Vue.js 3, Firebase SDK, Google Maps API
+- **Backend**: Flask, Firebase Admin SDK, Google Generative AI (Gemini API)
+- **Database**: Firebase Firestore and Realtime Database
+- **Authentication**: Firebase Authentication
+- **Deployment**: Firebase Hosting, Heroku/Google Cloud (backend)
 
-## Setup Instructions
+## Setup for Development
 
-### Prerequisites
-
-- Node.js and npm
-- Python 3.6+
-- Firebase account
-- Google Gemini API key
-
-### Backend Setup
-
-1. Navigate to the backend directory:
+1. **Clone the repository**:
 
    ```
-   cd gemini-backend
+   git clone https://github.com/yourusername/gemini-alert.git
+   cd gemini-alert
    ```
 
-2. Create and activate a virtual environment:
+2. **Install dependencies**:
 
    ```
+   # Backend
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+   pip install -r requirements.txt
 
-3. Install dependencies:
-
-   ```
-   pip install flask flask-cors google-generativeai
-   ```
-
-4. Set the API key:
-
-   ```
-   export GEMINI_API_KEY="your-api-key"
-   ```
-
-5. Run the backend:
-   ```
-   python app.py
-   ```
-
-### Frontend Setup
-
-1. Navigate to the frontend directory:
-
-   ```
+   # Frontend
    cd gemini-frontend
-   ```
-
-2. Install dependencies:
-
-   ```
    npm install
    ```
 
-3. Run the development server:
+3. **Environment Setup**:
+
+   - Create a `.env.development` file in the `gemini-frontend` directory with your Firebase and Gemini API keys
+   - Set the `GEMINI_API_KEY` environment variable for the backend
+
+4. **Run the application**:
    ```
-   npm run serve
+   ./start.sh
    ```
 
-## Usage
+## Deployment
 
-1. Register a new account or log in with existing credentials
-2. Select a template or describe your situation in the input field
-3. Click "Get De-escalation Guidance" to receive AI-powered assistance
-4. Follow the step-by-step guidance provided
+### Frontend Deployment (Firebase Hosting)
 
-## Contribution
+1. **Build the frontend**:
+
+   ```
+   cd gemini-frontend
+   npm run build:prod
+   ```
+
+2. **Deploy to Firebase Hosting**:
+   ```
+   npm run deploy
+   ```
+
+### Backend Deployment
+
+1. **Prepare the backend**:
+
+   ```
+   ./deploy-backend.sh
+   ```
+
+2. **Deploy to your preferred hosting platform**:
+   - Heroku, Google Cloud Run, AWS, etc.
+   - Set the necessary environment variables (see `.env.example`)
+
+## API Documentation
+
+### Backend API Endpoints
+
+- `POST /ask`: Ask a question to the Gemini AI
+- `POST /ask-stream`: Ask a question with streaming response
+- `GET /user/profile`: Get the user's profile information
+
+## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 

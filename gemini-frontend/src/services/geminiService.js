@@ -1,7 +1,7 @@
 import { auth } from '../firebase'
 
-// Base URL for API requests
-const API_BASE_URL = 'http://localhost:5001'
+// Base URL for API requests - use environment variable or fallback to localhost
+const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://localhost:5001'
 
 /**
  * Asks the Gemini AI for help with a question

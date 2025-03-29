@@ -7,6 +7,21 @@ BLUE='\033[0;34m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# Check if Gemini API key is set
+if [ -z "$GEMINI_API_KEY" ]; then
+  echo -e "${BLUE}No GEMINI_API_KEY environment variable found.${NC}"
+  echo -n "Do you want to enter a Gemini API key now? (y/n): "
+  read -r answer
+  if [[ "$answer" =~ ^[Yy]$ ]]; then
+    echo -n "Enter your Gemini API key: "
+    read -r api_key
+    export GEMINI_API_KEY="$api_key"
+    echo -e "${GREEN}API key set for this session.${NC}"
+  else
+    echo -e "${RED}Warning: Using mock responses. Set GEMINI_API_KEY for real responses.${NC}"
+  fi
+fi
+
 # Function to kill processes on specific ports with better error handling
 kill_process_on_port() {
   local port=$1
@@ -94,7 +109,7 @@ fi
 # Start frontend
 echo -e "${GREEN}Starting Frontend...${NC}"
 cd gemini-frontend
-NODE_OPTIONS="--openssl-legacy-provider" npm run serve > ../frontend.log 2>&1 &
+npm run dev > ../frontend.log 2>&1 &
 FRONTEND_PID=$!
 cd ..
 
@@ -114,6 +129,11 @@ echo -e "${GREEN}================================================${NC}"
 echo -e "${GREEN}Gemini Alert is running!${NC}"
 echo -e "${BLUE}Backend:${NC} http://localhost:5001"
 echo -e "${BLUE}Frontend:${NC} http://localhost:8080"
+if [ -z "$GEMINI_API_KEY" ] || [ "$GEMINI_API_KEY" == "YOUR_API_KEY_HERE" ]; then
+  echo -e "${RED}Warning: Using mock Gemini responses${NC}"
+else
+  echo -e "${GREEN}Using real Gemini API responses${NC}"
+fi
 echo -e "${GREEN}================================================${NC}"
 echo -e "Press ${RED}Ctrl+C${NC} to stop the application"
 
