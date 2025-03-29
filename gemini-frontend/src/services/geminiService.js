@@ -1,7 +1,8 @@
-import { auth } from '../firebase'
+import { auth } from '../firebase';
 
-// Base URL for API requests - always use the environment variable or fallback to localhost
 const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://localhost:5001';
+const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro';
+const SECURE_API_KEY = 'AIzaSyD9t-pWBqbZoFBoGvROkD1YS5dxYBzZE40';
 
 /**
  * Asks the Gemini AI for help with a question
@@ -10,31 +11,29 @@ const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://localhost:5001'
  */
 export const askGemini = async (question) => {
   try {
-    // Get the current user's auth token
-    const token = await auth.currentUser.getIdToken()
-    
-    // Log the API URL we're using
-    console.log(`Making API request to: ${API_BASE_URL}/ask`);
-    
-    const response = await fetch(`${API_BASE_URL}/ask`, {
+    // Make direct request to Gemini API
+    const response = await fetch(`${GEMINI_BASE_URL}:generateContent?key=${SECURE_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ question }),
-      // Add timeout
+      body: JSON.stringify({
+        contents: [{
+          parts: [{ text: question }],
+        }],
+      }),
       signal: AbortSignal.timeout(10000) // 10 second timeout
-    })
-    
+    });
+
     if (!response.ok) {
-      console.warn(`API response not OK: ${response.status}`);
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `Failed to get response from Gemini API: ${response.status}`)
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Gemini API error:', errorData);
+      throw new Error(errorData.error || `Failed to get response from Gemini API: ${response.status}`);
     }
-    
-    const data = await response.json()
-    return data.response
+
+    const data = await response.json();
+    const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    return responseText || 'No response from Gemini.';
   } catch (error) {
     console.error('Error asking Gemini:', error);
     return `Sorry, there was an error connecting to Gemini: ${error.message}. Please try again later.`;
@@ -49,65 +48,60 @@ export const askGemini = async (question) => {
  */
 export const askGeminiStream = async (question, onChunkReceived) => {
   try {
-    // Get the current user's auth token
-    let token
-    try {
-      token = await auth.currentUser.getIdToken()
-    } catch (authError) {
-      console.error('Auth error:', authError)
-      onChunkReceived("Error getting authentication token. Please try again.");
-      return
-    }
-    
-    // Log the API URL we're using for streaming
-    console.log(`Making streaming API request to: ${API_BASE_URL}/ask-stream`);
-    
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
     
-    const response = await fetch(`${API_BASE_URL}/ask-stream`, {
+    const response = await fetch(`${GEMINI_BASE_URL}:streamGenerateContent?key=${SECURE_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({
+        contents: [{
+          parts: [{ text: question }],
+        }],
+      }),
       signal: controller.signal
-    })
+    });
     
     clearTimeout(timeoutId);
-    
+
     if (!response.ok) {
-      console.warn(`Streaming API response not OK: ${response.status}`);
-      // Try to parse error response
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `Failed to get streaming response: ${response.status}`)
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Gemini API streaming error:', errorData);
+      throw new Error(errorData.error || `Failed to get streaming response from Gemini: ${response.status}`);
     }
-    
-    // Set up reader for streaming
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    
-    let streamActive = true
-    while (streamActive) {
-      const { done, value } = await reader.read()
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder('utf-8');
+
+    if (!reader) {
+      console.error('Could not get reader for streaming response.');
+      return;
+    }
+
+    while (true) {
+      const { done, value } = await reader.read();
       if (done) {
-        streamActive = false
-        break
+        break;
       }
-      
-      const text = decoder.decode(value)
-      const lines = text.split('\n\n')
-      
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const chunk = line.substring(6)
-          onChunkReceived(chunk)
+      const chunk = decoder.decode(value);
+      try {
+        // The streaming response is a series of JSON objects
+        const jsonChunks = chunk.split('\n').filter(line => line.trim() !== '');
+        for (const jsonChunk of jsonChunks) {
+          const parsed = JSON.parse(jsonChunk);
+          const textChunk = parsed?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (textChunk) {
+            onChunkReceived(textChunk);
+          }
         }
+      } catch (e) {
+        console.error('Error parsing streaming chunk:', e, chunk);
       }
     }
   } catch (error) {
-    console.error('Error streaming from Gemini:', error)
+    console.error('Error streaming from Gemini:', error);
     onChunkReceived(`Sorry, there was an error connecting to the Gemini API: ${error.message}. Please try again later.`);
   }
 }
