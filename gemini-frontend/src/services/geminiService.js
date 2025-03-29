@@ -80,9 +80,11 @@ export const askGeminiStream = async (question, onChunkReceived) => {
       return;
     }
 
-    while (true) {
+    let streamActive = true;
+    while (streamActive) {
       const { done, value } = await reader.read();
       if (done) {
+        streamActive = false;
         break;
       }
       const chunk = decoder.decode(value);
