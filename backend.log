@@ -30,3 +30,5 @@ ValueError: Invalid operation: The `response.text` quick accessor requires the r
 127.0.0.1 - - [29/Mar/2025 16:50:49] "POST /ask-stream HTTP/1.1" 200 -
 127.0.0.1 - - [29/Mar/2025 16:51:14] "OPTIONS /ask-stream HTTP/1.1" 200 -
 127.0.0.1 - - [29/Mar/2025 16:51:25] "POST /ask-stream HTTP/1.1" 200 -
+/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/multiprocessing/resource_tracker.py:224: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '
