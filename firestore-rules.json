@@ -1,9 +1,23 @@
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    // Allow anyone to read and write all documents
-    match /{document=**} {
-      allow read, write: if true;
+{
+  "rules_version": "2",
+  "service": "cloud.firestore",
+  "match": "/databases/{database}/documents",
+  "rules": {
+    "users/{userId}": {
+      "read": true,
+      "write": true
+    },
+    "alerts/{alertId}": {
+      "read": true,
+      "write": true
+    },
+    "locations/{userId}": {
+      "read": true,
+      "write": true
+    },
+    "{document=**}": {
+      "read": true,
+      "write": true
     }
   }
 }

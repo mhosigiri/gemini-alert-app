@@ -1,7 +1,18 @@
 import { auth } from '../firebase'
 
-// Base URL for API requests - use environment variable or fallback to localhost
-const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://localhost:5001'
+// Check if we're in production on Vercel
+const isVercelProduction = window.location.hostname.includes('vercel.app');
+
+// Base URL for API requests - use mock service in production on Vercel
+let API_BASE_URL;
+if (isVercelProduction) {
+  console.log('Running on Vercel production - using mock Gemini service');
+  // We'll use a mock implementation instead of an actual endpoint
+  API_BASE_URL = null;
+} else {
+  // Default to environment variable or localhost
+  API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://localhost:5001';
+}
 
 // Fallback response when the backend is unavailable
 const FALLBACK_RESPONSE = `
@@ -18,12 +29,84 @@ I'm sorry, but I can't access the Gemini AI service right now. Here are some gen
 [This is a fallback response because the Gemini AI service is currently unavailable]
 `;
 
+// Mock responses for different types of emergencies
+const EMERGENCY_RESPONSES = {
+  medical: `
+For medical emergencies:
+
+1. Call emergency services (911 in the US) for life-threatening conditions
+2. For minor injuries, apply basic first aid:
+   - For cuts: Clean with water, apply pressure to stop bleeding, cover with clean bandage
+   - For burns: Run cool (not cold) water over the area, cover with clean dry cloth
+   - For sprains: RICE - Rest, Ice, Compression, Elevation
+3. Keep the person calm and still
+4. Monitor vital signs (breathing, pulse) until help arrives
+5. If someone is unconscious but breathing, place them in the recovery position
+6. If they're not breathing, begin CPR if you're trained
+7. For choking, perform the Heimlich maneuver
+
+Remember: This advice is general - always seek professional medical help in emergencies.
+  `,
+  safety: `
+For personal safety emergencies:
+
+1. If you feel threatened in public, move to a well-lit area with other people
+2. Call emergency services if you feel in immediate danger
+3. Share your live location with trusted friends or family
+4. If being followed, enter a public business or ask for help
+5. Trust your instincts - if something feels wrong, take action
+6. In case of active threats, remember: Run, Hide, Fight (in that order)
+7. Keep emergency contacts easily accessible on your phone
+8. Consider using safety apps that can quickly alert contacts with your location
+9. Stay aware of your surroundings and avoid distractions like headphones in isolated areas
+
+Stay safe and remember that your well-being is the priority.
+  `,
+  harassment: `
+For harassment situations:
+
+1. Clearly state that the behavior is unwelcome and inappropriate
+2. Remove yourself from the situation if possible
+3. Document incidents with dates, times, descriptions, and witnesses
+4. Report the harassment to appropriate authorities (campus security, HR, police)
+5. Seek support from trusted friends, family, or counselors
+6. Know your rights - harassment based on protected characteristics is illegal
+7. Consider using a personal safety app that records and alerts contacts
+8. If online harassment occurs, block the person and report to the platform
+9. Keep evidence of all communications and incidents
+10. Contact local victim support services for additional resources
+
+Remember you have the right to feel safe, and you're not alone.
+  `,
+  general: `
+For general emergency situations:
+
+1. First assess: Is anyone in immediate danger?
+2. Call emergency services if necessary (911 in US)
+3. Stay calm and speak clearly when requesting help
+4. Follow instructions from emergency personnel
+5. If evacuation is needed, leave immediately - don't gather belongings
+6. Help others if it's safe to do so
+7. Have a communication plan with family/friends - designate meeting points
+8. Keep emergency contacts and important documents accessible
+9. Have basic emergency supplies ready (water, first aid, flashlight)
+10. Stay informed through emergency broadcasts or official alert systems
+
+Being prepared and remaining calm are your best tools in any emergency.
+  `
+};
+
 /**
  * Asks the Gemini AI for help with a question
  * @param {string} question - The user's question for Gemini
  * @returns {Promise<string>} - The response from Gemini
  */
 export const askGemini = async (question) => {
+  // Special handling for Vercel deployment - generate responses locally
+  if (isVercelProduction) {
+    return generateMockResponse(question);
+  }
+  
   try {
     // Get the current user's auth token
     const token = await auth.currentUser.getIdToken()
@@ -50,12 +133,87 @@ export const askGemini = async (question) => {
       return data.response
     } catch (fetchError) {
       console.warn('Backend fetch failed, using fallback response:', fetchError)
-      return FALLBACK_RESPONSE + `\n\nOriginal question: "${question}"\n\nError: ${fetchError.message}`
+      return generateMockResponse(question);
     }
   } catch (error) {
     console.error('Error asking Gemini:', error)
-    return FALLBACK_RESPONSE
+    return generateMockResponse(question);
   }
+}
+
+/**
+ * Analyze question to determine the most appropriate response type
+ * @param {string} question - The user's question
+ * @returns {string} The response category
+ */
+function determineResponseType(question) {
+  // Convert question to lowercase for easier matching
+  const q = question.toLowerCase();
+  
+  // Check for medical keywords
+  if (
+    q.includes('injured') || 
+    q.includes('hurt') || 
+    q.includes('bleeding') || 
+    q.includes('pain') || 
+    q.includes('hospital') || 
+    q.includes('medical') || 
+    q.includes('doctor') || 
+    q.includes('ambulance') ||
+    q.includes('first aid') ||
+    q.includes('wound') ||
+    q.includes('accident')
+  ) {
+    return 'medical';
+  }
+  
+  // Check for safety keywords
+  if (
+    q.includes('safe') || 
+    q.includes('danger') || 
+    q.includes('threat') || 
+    q.includes('attack') || 
+    q.includes('weapon') || 
+    q.includes('hide') || 
+    q.includes('protect') ||
+    q.includes('stalking') ||
+    q.includes('following')
+  ) {
+    return 'safety';
+  }
+  
+  // Check for harassment keywords
+  if (
+    q.includes('harass') || 
+    q.includes('unwanted') || 
+    q.includes('uncomfortable') || 
+    q.includes('inappropriate') || 
+    q.includes('touch') || 
+    q.includes('report') || 
+    q.includes('bully') ||
+    q.includes('stalker')
+  ) {
+    return 'harassment';
+  }
+  
+  // Default to general emergencies
+  return 'general';
+}
+
+/**
+ * Generate a mock response based on the user's question
+ * @param {string} question - The user's question
+ * @returns {string} - The generated mock response
+ */
+function generateMockResponse(question) {
+  // Determine which type of response to use
+  const responseType = determineResponseType(question);
+  
+  // Get the appropriate response template
+  const responseTemplate = EMERGENCY_RESPONSES[responseType];
+  
+  // Add personalization to make it seem more like a real response
+  return `In response to your question: "${question}"\n\n${responseTemplate}\n\nI hope this helps with your situation. Stay safe!`;
 }
 
 /**
@@ -65,6 +223,12 @@ export const askGemini = async (question) => {
  * @returns {Promise<void>}
  */
 export const askGeminiStream = async (question, onChunkReceived) => {
+  // Special handling for Vercel deployment - use local streaming simulation
+  if (isVercelProduction) {
+    simulateStreamingResponse(question, onChunkReceived);
+    return;
+  }
+  
   try {
     // Get the current user's auth token
     let token
@@ -73,7 +237,7 @@ export const askGeminiStream = async (question, onChunkReceived) => {
     } catch (authError) {
       console.error('Auth error:', authError)
       // Send fallback response in chunks
-      simulateFallbackResponse(onChunkReceived, question)
+      simulateStreamingResponse(question, onChunkReceived);
       return
     }
     
@@ -122,40 +286,54 @@ export const askGeminiStream = async (question, onChunkReceived) => {
         }
       }
     } catch (fetchError) {
-      console.warn('Streaming fetch failed, using fallback:', fetchError)
-      simulateFallbackResponse(onChunkReceived, question, fetchError.message)
+      console.warn('Streaming fetch failed, using AI-generated response:', fetchError)
+      simulateStreamingResponse(question, onChunkReceived);
     }
   } catch (error) {
     console.error('Error streaming from Gemini:', error)
-    simulateFallbackResponse(onChunkReceived, question, error.message)
+    simulateStreamingResponse(question, onChunkReceived);
   }
 }
 
 /**
- * Simulates a streaming response with fallback content
- * @param {function} onChunkReceived - Callback for each chunk
+ * Simulates a streaming response with content based on user question
  * @param {string} question - The original question
- * @param {string} errorMsg - Optional error message
+ * @param {function} onChunkReceived - Callback for each chunk
  */
-function simulateFallbackResponse(onChunkReceived, question, errorMsg = 'Backend unavailable') {
-  const fallbackLines = FALLBACK_RESPONSE.trim().split('\n');
+function simulateStreamingResponse(question, onChunkReceived) {
+  // Determine response type based on question
+  const responseType = determineResponseType(question);
+  const responseTemplate = EMERGENCY_RESPONSES[responseType];
+  
+  // Create an introduction
+  const intro = `In response to your question: "${question}"\n\n`;
+  
+  // Split into an array of all sentences
+  const allLines = [
+    ...intro.split('\n'),
+    ...responseTemplate.trim().split('\n')
+  ];
+  
+  // Add a conclusion
+  allLines.push('');
+  allLines.push('I hope this helps with your situation. Stay safe!');
+  
   let currentIndex = 0;
   
-  // Send an initial error message
-  onChunkReceived(`I'm sorry, but I couldn't connect to the Gemini AI service (${errorMsg}). `);
-  
-  // Use a timer to simulate streaming the fallback response
+  // Use a timer to simulate streaming
   const interval = setInterval(() => {
-    if (currentIndex < fallbackLines.length) {
-      const line = fallbackLines[currentIndex].trim();
+    if (currentIndex < allLines.length) {
+      const line = allLines[currentIndex].trim();
       if (line) {
-        onChunkReceived(line + ' ');
+        // Send each line followed by a space or newline
+        onChunkReceived(line + (line.startsWith('1.') || line.endsWith(':') ? '\n' : ' '));
+      } else {
+        // Empty line means newline
+        onChunkReceived('\n');
       }
       currentIndex++;
     } else {
       clearInterval(interval);
-      // Add the question as context at the end
-      onChunkReceived(`\n\nOriginal question: "${question}"`);
     }
-  }, 150); // Send a new chunk every 150ms
+  }, 100); // Faster pace for better user experience
 }

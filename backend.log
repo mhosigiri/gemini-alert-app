@@ -9,26 +9,5 @@ Gemini API configured successfully in development mode
  * Restarting with stat
  * Debugger is active!
  * Debugger PIN: 824-592-925
-127.0.0.1 - - [29/Mar/2025 16:50:07] "OPTIONS /ask-stream HTTP/1.1" 200 -
-127.0.0.1 - - [29/Mar/2025 16:50:11] "POST /ask-stream HTTP/1.1" 200 -
-Debugging middleware caught exception in streamed response at a point where response headers were already sent.
-Traceback (most recent call last):
-  File "/Users/arniskc/Documents/gemini-alert/venv/lib/python3.10/site-packages/werkzeug/wsgi.py", line 256, in __next__
-    return self._next()
-  File "/Users/arniskc/Documents/gemini-alert/venv/lib/python3.10/site-packages/werkzeug/wrappers/response.py", line 32, in _iter_encoded
-    for item in iterable:
-  File "/Users/arniskc/Documents/gemini-alert/venv/lib/python3.10/site-packages/flask/helpers.py", line 125, in generator
-    yield from gen
-  File "/Users/arniskc/Documents/gemini-alert/gemini-backend/app.py", line 229, in generate
-    if chunk.text:
-  File "/Users/arniskc/Documents/gemini-alert/venv/lib/python3.10/site-packages/google/generativeai/types/generation_types.py", line 479, in text
-    raise ValueError(msg)
-ValueError: Invalid operation: The `response.text` quick accessor requires the response to contain a valid `Part`, but none were returned. The candidate's [finish_reason](https://ai.google.dev/api/generate-content#finishreason) is 1.
-127.0.0.1 - - [29/Mar/2025 16:50:21] "OPTIONS /ask-stream HTTP/1.1" 200 -
-127.0.0.1 - - [29/Mar/2025 16:50:26] "POST /ask-stream HTTP/1.1" 200 -
-127.0.0.1 - - [29/Mar/2025 16:50:39] "OPTIONS /ask-stream HTTP/1.1" 200 -
-127.0.0.1 - - [29/Mar/2025 16:50:49] "POST /ask-stream HTTP/1.1" 200 -
-127.0.0.1 - - [29/Mar/2025 16:51:14] "OPTIONS /ask-stream HTTP/1.1" 200 -
-127.0.0.1 - - [29/Mar/2025 16:51:25] "POST /ask-stream HTTP/1.1" 200 -
-/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/multiprocessing/resource_tracker.py:224: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown
-  warnings.warn('resource_tracker: There appear to be %d '
+127.0.0.1 - - [29/Mar/2025 17:31:41] "OPTIONS /ask-stream HTTP/1.1" 200 -
+127.0.0.1 - - [29/Mar/2025 17:31:47] "POST /ask-stream HTTP/1.1" 200 -

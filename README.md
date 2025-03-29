@@ -1,6 +1,7 @@
 # Gemini Alert
 
 A emergency alert application that helps users send alerts to nearby people in emergency situations. Includes a Gemini AI-powered assistant for providing guidance and safety information.
+Visit ("https://gemini-alert-app.vercel.app/")
 
 ## Features
 
