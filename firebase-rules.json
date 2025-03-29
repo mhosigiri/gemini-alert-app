@@ -1,0 +1,22 @@
+{
+  "rules": {
+    ".read": true,
+    ".write": true,
+    "users": {
+      ".read": true,
+      ".write": true
+    },
+    "locations": {
+      ".read": true,
+      ".write": true
+    },
+    "alerts": {
+      ".read": true,
+      ".write": true
+    },
+    "notifications": {
+      ".read": true,
+      ".write": true
+    }
+  }
+}

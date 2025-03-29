@@ -1,8 +1,13 @@
 import firebase_admin
 from firebase_admin import credentials, auth, firestore
+import os
+
+# Get absolute path to the service account file
+current_dir = os.path.dirname(os.path.abspath(__file__))
+service_account_path = os.path.join(os.path.dirname(current_dir), 'serviceAccountKey.json')
 
 # Initialize Firebase Admin with service account
-cred = credentials.Certificate('../serviceAccountKey.json')  # Path relative to this file
+cred = credentials.Certificate(service_account_path)
 firebase_app = firebase_admin.initialize_app(cred)
 
 # Initialize Firestore DB

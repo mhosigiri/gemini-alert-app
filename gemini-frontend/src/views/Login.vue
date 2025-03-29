@@ -2,6 +2,7 @@
   <div class="login-container">
     <h1>Login</h1>
     <div v-if="error" class="error-message">{{ error }}</div>
+    <div v-if="successMessage" class="success-message">{{ successMessage }}</div>
     
     <form @submit.prevent="login">
       <div class="form-group">
@@ -19,6 +20,12 @@
         <router-link to="/register" class="register-link">Need an account? Register</router-link>
       </div>
     </form>
+    
+    <div class="demo-account">
+      <button @click="useTestAccount" :disabled="loading" class="test-account-btn">
+        Use Demo Account
+      </button>
+    </div>
   </div>
 </template>
 
@@ -26,7 +33,8 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { auth } from '../firebase'
-import { signInWithEmailAndPassword } from 'firebase/auth'
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
+import { ensureUserInDatabase } from '../services/userService'
 
 export default {
   name: 'LoginPage',
@@ -35,19 +43,91 @@ export default {
     const email = ref('')
     const password = ref('')
     const error = ref(null)
+    const successMessage = ref(null)
     const loading = ref(false)
     const router = useRouter()
     
     const login = async () => {
       loading.value = true
       error.value = null
+      successMessage.value = null
       
       try {
-        await signInWithEmailAndPassword(auth, email.value, password.value)
+        const userCredential = await signInWithEmailAndPassword(auth, email.value, password.value)
+        // Ensure user exists in database but don't throw if it fails
+        try {
+          await ensureUserInDatabase(userCredential.user)
+        } catch (dbErr) {
+          console.error("Database error but continuing login:", dbErr)
+        }
         router.push('/')
       } catch (err) {
         console.error(err)
-        error.value = 'Invalid email or password'
+        if (err.code === 'auth/user-not-found') {
+          error.value = 'User not found. Please check your email or register.'
+        } else if (err.code === 'auth/wrong-password') {
+          error.value = 'Incorrect password. Please try again.'
+        } else {
+          error.value = 'Login failed: ' + (err.message || 'Unknown error')
+        }
+      } finally {
+        loading.value = false
+      }
+    }
+    
+    // Test account function
+    const useTestAccount = async () => {
+      loading.value = true
+      error.value = null
+      successMessage.value = null
+      
+      const testEmail = 'test@example.com'
+      const testPassword = 'test123456'
+      
+      try {
+        // Try to log in with test account
+        try {
+          const userCredential = await signInWithEmailAndPassword(auth, testEmail, testPassword)
+          try {
+            await ensureUserInDatabase(userCredential.user)
+          } catch (dbErr) {
+            console.error("Database error but continuing login:", dbErr)
+          }
+          router.push('/')
+          return
+        } catch (loginErr) {
+          // If login fails, try to create the test account
+          if (loginErr.code === 'auth/user-not-found') {
+            try {
+              const userCredential = await createUserWithEmailAndPassword(auth, testEmail, testPassword)
+              successMessage.value = 'Demo account created! Logging in...'
+              
+              try {
+                await ensureUserInDatabase(userCredential.user)
+              } catch (dbErr) {
+                console.error("Database error but continuing:", dbErr)
+              }
+              
+              // Wait a moment then redirect
+              setTimeout(() => {
+                router.push('/')
+              }, 1500)
+              return
+            } catch (createErr) {
+              if (createErr.code === 'auth/email-already-in-use') {
+                // This shouldn't happen but handle it anyway
+                error.value = 'Test account exists but login failed. Please try again.'
+              } else {
+                throw createErr
+              }
+            }
+          } else {
+            throw loginErr
+          }
+        }
+      } catch (err) {
+        console.error("Test account error:", err)
+        error.value = 'Failed to use demo account: ' + (err.message || 'Unknown error')
       } finally {
         loading.value = false
       }
@@ -57,8 +137,10 @@ export default {
       email,
       password,
       error,
+      successMessage,
       loading,
-      login
+      login,
+      useTestAccount
     }
   }
 }
@@ -76,7 +158,7 @@ export default {
 
 h1 {
   margin-top: 0;
-  color: #4CAF50;
+  color: #4285F4;
 }
 
 .form-group {
@@ -98,6 +180,43 @@ label {
   border-radius: 4px;
 }
 
+.success-message {
+  color: #4CAF50;
+  margin-bottom: 15px;
+  padding: 10px;
+  background-color: #e8f5e9;
+  border-radius: 4px;
+}
+
+input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+button {
+  width: 100%;
+  padding: 12px;
+  background-color: #4285F4;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.3s;
+}
+
+button:hover:not(:disabled) {
+  background-color: #3367d6;
+}
+
+button:disabled {
+  background-color: #9bb8ea;
+  cursor: not-allowed;
+}
+
 .buttons {
   display: flex;
   flex-direction: column;
@@ -106,11 +225,26 @@ label {
 
 .register-link {
   margin-top: 15px;
-  color: #4CAF50;
+  color: #4285F4;
   text-decoration: none;
 }
 
 .register-link:hover {
   text-decoration: underline;
+}
+
+.demo-account {
+  margin-top: 25px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+  text-align: center;
+}
+
+.test-account-btn {
+  background-color: #34A853;
+}
+
+.test-account-btn:hover:not(:disabled) {
+  background-color: #2e8f49;
 }
 </style> 

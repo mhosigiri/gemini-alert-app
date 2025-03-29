@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { auth } from '../firebase';
 
-const BASE_URL = 'http://localhost:5000';
+// Base API URL
+const BASE_URL = 'http://localhost:5001';
 
 // Create axios instance
 const api = axios.create({

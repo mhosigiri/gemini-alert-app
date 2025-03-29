@@ -32,9 +32,15 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
   const isAuthenticated = auth.currentUser
+  
+  console.log('Route navigation:', { to: to.path, requiresAuth, isAuthenticated: !!isAuthenticated })
 
   if (requiresAuth && !isAuthenticated) {
+    console.log('User not authenticated, redirecting to login')
     next('/login')
+  } else if (to.path === '/login' && isAuthenticated) {
+    console.log('User already logged in, redirecting to home')
+    next('/')
   } else {
     next()
   }
