@@ -220,9 +220,9 @@ export const findNearbyUsers = async (radius = 5) => { // radius in kilometers
     console.log('Running in Vercel production environment, using mock data for nearby users');
     // Return mock users for Vercel deployment
     return [
-      { uid: 'mock1', displayName: 'Nearby Helper 1', distance: 0.8, lastUpdated: new Date() },
-      { uid: 'mock2', displayName: 'Nearby Helper 2', distance: 1.5, lastUpdated: new Date() },
-      { uid: 'mock3', displayName: 'Nearby Helper 3', distance: 2.3, lastUpdated: new Date() }
+      { uid: 'mock1', displayName: 'Piyush', distance: 0.8, lastUpdated: new Date() },
+      { uid: 'mock2', displayName: 'Saugat', distance: 1.5, lastUpdated: new Date() },
+      { uid: 'mock3', displayName: 'Anish', distance: 2.3, lastUpdated: new Date() }
     ];
   }
 
