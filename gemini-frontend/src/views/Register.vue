@@ -3,48 +3,39 @@
     <h1>Create an Account</h1>
     <div v-if="error" class="error-message">{{ error }}</div>
     <div v-if="successMessage" class="success-message">{{ successMessage }}</div>
-    
     <form @submit.prevent="register">
       <div class="form-group">
         <label for="name">Full Name</label>
         <input type="text" id="name" v-model="name" required>
       </div>
-      
       <div class="form-group">
         <label for="email">Email</label>
         <input type="email" id="email" v-model="email" required>
       </div>
-      
       <div class="form-group">
         <label for="password">Password</label>
         <input type="password" id="password" v-model="password" required min="6">
         <small>Password must be at least 6 characters long</small>
       </div>
-      
       <div class="buttons">
-        <button type="submit" :disabled="loading">{{ loading ? 'Creating Account...' : 'Register' }}</button>
-        <router-link to="/login" class="login-link">Already have an account? Login</router-link>
+        <button type="submit" :disabled="isLoading">
+          {{ isLoading ? 'Creating Account...' : 'Register' }}
+        </button>
       </div>
     </form>
-
-    <div class="demo-account">
-      <button @click="useTestAccount" :disabled="loading" class="test-account-btn">
-        Use Demo Account
-      </button>
-    </div>
+    <p class="auth-link">
+      Already have an account? <router-link to="/login">Login here</router-link>
+    </p>
   </div>
 </template>
-
 <script>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { auth } from '../firebase'
 import { createUserWithEmailAndPassword, updateProfile, signInWithEmailAndPassword } from 'firebase/auth'
 import { ensureUserInDatabase } from '../services/userService'
-
 export default {
   name: 'RegisterPage',
-  
   setup() {
     const name = ref('')
     const email = ref('')
@@ -53,38 +44,30 @@ export default {
     const successMessage = ref(null)
     const loading = ref(false)
     const router = useRouter()
-    
     const register = async () => {
       loading.value = true
       error.value = null
       successMessage.value = null
-      
       if (password.value.length < 6) {
         error.value = 'Password must be at least 6 characters'
         loading.value = false
         return
       }
-      
       try {
         // Create user with email and password
         const userCredential = await createUserWithEmailAndPassword(auth, email.value, password.value)
         const user = userCredential.user
-        
         // Update profile with name
         await updateProfile(user, {
           displayName: name.value
         })
-        
         // Ensure user is added to both Firestore and RTDB
         try {
           await ensureUserInDatabase(user)
         } catch (dbErr) {
-          console.error("Database error but continuing registration:", dbErr)
         }
-        
         router.push('/')
       } catch (err) {
-        console.error(err)
         if (err.code === 'auth/email-already-in-use') {
           error.value = 'Email already in use'
         } else {
@@ -94,71 +77,6 @@ export default {
         loading.value = false
       }
     }
-    
-    // Test account function
-    const useTestAccount = async () => {
-      loading.value = true
-      error.value = null
-      successMessage.value = null
-      
-      const testEmail = 'test@example.com'
-      const testPassword = 'test123456'
-      
-      try {
-        // Try to log in with test account
-        try {
-          const userCredential = await signInWithEmailAndPassword(auth, testEmail, testPassword)
-          try {
-            await ensureUserInDatabase(userCredential.user)
-          } catch (dbErr) {
-            console.error("Database error but continuing login:", dbErr)
-          }
-          router.push('/')
-          return
-        } catch (loginErr) {
-          // If login fails, try to create the test account
-          if (loginErr.code === 'auth/user-not-found') {
-            try {
-              const userCredential = await createUserWithEmailAndPassword(auth, testEmail, testPassword)
-              
-              // Update profile with test name
-              await updateProfile(userCredential.user, {
-                displayName: 'Test User'
-              })
-              
-              successMessage.value = 'Demo account created! Logging in...'
-              
-              try {
-                await ensureUserInDatabase(userCredential.user)
-              } catch (dbErr) {
-                console.error("Database error but continuing:", dbErr)
-              }
-              
-              // Wait a moment then redirect
-              setTimeout(() => {
-                router.push('/')
-              }, 1500)
-              return
-            } catch (createErr) {
-              if (createErr.code === 'auth/email-already-in-use') {
-                // This shouldn't happen but handle it anyway
-                error.value = 'Test account exists but login failed. Please try again.'
-              } else {
-                throw createErr
-              }
-            }
-          } else {
-            throw loginErr
-          }
-        }
-      } catch (err) {
-        console.error("Test account error:", err)
-        error.value = 'Failed to use demo account: ' + (err.message || 'Unknown error')
-      } finally {
-        loading.value = false
-      }
-    }
-    
     return {
       name,
       email,
@@ -166,13 +84,11 @@ export default {
       error,
       successMessage,
       loading,
-      register,
-      useTestAccount
+      register
     }
   }
 }
 </script>
-
 <style scoped>
 .register-container {
   max-width: 400px;
@@ -182,29 +98,24 @@ export default {
   border-radius: 8px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
-
 h1 {
   margin-top: 0;
   color: #4285F4;
 }
-
 .form-group {
   margin-bottom: 15px;
   text-align: left;
 }
-
 label {
   display: block;
   margin-bottom: 5px;
   font-weight: bold;
 }
-
 small {
   display: block;
   color: #666;
   margin-top: 5px;
 }
-
 .error-message {
   color: #f44336;
   margin-bottom: 15px;
@@ -212,7 +123,6 @@ small {
   background-color: #ffebee;
   border-radius: 4px;
 }
-
 .success-message {
   color: #4CAF50;
   margin-bottom: 15px;
@@ -220,7 +130,6 @@ small {
   background-color: #e8f5e9;
   border-radius: 4px;
 }
-
 input {
   width: 100%;
   padding: 10px;
@@ -228,7 +137,6 @@ input {
   border-radius: 4px;
   font-size: 16px;
 }
-
 button {
   width: 100%;
   padding: 12px;
@@ -240,43 +148,35 @@ button {
   font-weight: bold;
   transition: background-color 0.3s;
 }
-
 button:hover:not(:disabled) {
   background-color: #3367d6;
 }
-
 button:disabled {
   background-color: #9bb8ea;
   cursor: not-allowed;
 }
-
 .buttons {
   display: flex;
   flex-direction: column;
   align-items: center;
 }
-
 .login-link {
   margin-top: 15px;
   color: #4285F4;
   text-decoration: none;
 }
-
 .login-link:hover {
   text-decoration: underline;
 }
-
 .demo-account {
   margin-top: 25px;
   padding-top: 15px;
   border-top: 1px solid #eee;
   text-align: center;
 }
-
 .test-account-btn {
   background-color: #34A853;
 }
-
 .test-account-btn:hover:not(:disabled) {
   background-color: #2e8f49;
 }

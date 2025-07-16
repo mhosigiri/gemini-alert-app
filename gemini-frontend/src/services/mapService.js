@@ -1,24 +1,19 @@
 import { Loader } from '@googlemaps/js-api-loader';
 import { ref, onValue } from 'firebase/database';
 import { rtdb, auth } from '../firebase';
-
 // Cache for Google Maps API
 let googleMapsApi = null;
-
-// Google Maps API key
-const MAPS_API_KEY = 'AIzaSyDqhENCCOzvFRhqMwK2slTguF-GGbbi_Jk';
-
+// Google Maps API key from environment
+const MAPS_API_KEY = process.env.VUE_APP_GOOGLE_MAPS_API_KEY || '';
 // Map instance
 let map = null;
 let markers = [];
 let currentLocationMarker = null;
 let locationCircle = null;
 let userListeners = [];
-
 // Track if map has been initialized
 let mapInitialized = false;
 let loaderPromise = null;
-
 // Initialize Google Maps API loader (singleton)
 const getGoogleMapsApi = async () => {
   if (!loaderPromise) {
@@ -28,30 +23,23 @@ const getGoogleMapsApi = async () => {
       libraries: ['maps', 'places', 'marker'],
       callback: 'console.debug'  // Required callback, using console.debug as noop
     });
-    
     loaderPromise = loader.load();
   }
-  
   return loaderPromise;
 };
-
 // Initialize Google Maps
 export const initMap = async (elementId, options = {}) => {
   if (mapInitialized && map) {
-    console.log('Map already initialized, returning existing map');
     return map;
   }
-  
   try {
     // Get Google Maps API
     googleMapsApi = await getGoogleMapsApi();
-    
     // Check if element exists
     const mapElement = document.getElementById(elementId);
     if (!mapElement) {
       throw new Error(`Element with ID "${elementId}" not found`);
     }
-    
     const defaultOptions = {
       center: { lat: 0, lng: 0 }, // Default center (will be updated)
       zoom: 15,
@@ -64,57 +52,43 @@ export const initMap = async (elementId, options = {}) => {
       zoomControl: true,
       gestureHandling: 'greedy' // Makes it easier to use on mobile
     };
-    
     const mapOptions = { ...defaultOptions, ...options };
-    
     // Create map
     map = new googleMapsApi.maps.Map(mapElement, mapOptions);
     mapInitialized = true;
-    
     return map;
   } catch (error) {
-    console.error('Error initializing map:', error);
     mapInitialized = false;
     throw error;
   }
 };
-
 // Default location (used when geolocation is not available)
 const DEFAULT_LOCATION = { lat: 37.7749, lng: -122.4194 }; // San Francisco
-
 // Center map on user's current location
 export const centerMapOnUserLocation = async (radiusInKm = 1) => {
   if (!mapInitialized || !map) {
-    console.warn('Map is not initialized, cannot center');
     return DEFAULT_LOCATION;
   }
-
   try {
     // Ensure Google Maps API is loaded
     if (!googleMapsApi) {
       googleMapsApi = await getGoogleMapsApi();
     }
-    
     let currentLocation;
-    
     try {
       // Get current position
       const position = await getCurrentPosition();
       const { latitude, longitude } = position.coords;
       currentLocation = { lat: latitude, lng: longitude };
     } catch (geoError) {
-      console.warn('Error getting user location, using default:', geoError);
       currentLocation = DEFAULT_LOCATION;
       throw geoError; // Re-throw to notify caller
     }
-    
     // Center map
     try {
       map.setCenter(currentLocation);
     } catch (error) {
-      console.warn('Error centering map:', error);
     }
-    
     // Add marker for current location
     try {
       if (googleMapsApi.maps.marker && googleMapsApi.maps.marker.AdvancedMarkerElement) {
@@ -125,9 +99,7 @@ export const centerMapOnUserLocation = async (radiusInKm = 1) => {
             // as it doesn't have a setPosition method
             currentLocationMarker.map = null;
           } catch (e) {
-            console.warn('Error removing old advanced marker:', e);
           }
-          
           // Create a new advanced marker
           currentLocationMarker = new googleMapsApi.maps.marker.AdvancedMarkerElement({
             position: currentLocation,
@@ -165,9 +137,7 @@ export const centerMapOnUserLocation = async (radiusInKm = 1) => {
         }
       }
     } catch (markerError) {
-      console.warn('Error updating current location marker:', markerError);
     }
-    
     // Create or update a circle showing search radius
     try {
       const radiusInMeters = radiusInKm * 1000;
@@ -188,16 +158,12 @@ export const centerMapOnUserLocation = async (radiusInKm = 1) => {
         });
       }
     } catch (circleError) {
-      console.warn('Error updating location circle:', circleError);
     }
-    
     return currentLocation;
   } catch (error) {
-    console.error('Error centering map on user location:', error);
     return DEFAULT_LOCATION; // Return default location but don't break the flow
   }
 };
-
 // Get current position
 const getCurrentPosition = () => {
   return new Promise((resolve, reject) => {
@@ -205,7 +171,6 @@ const getCurrentPosition = () => {
       reject(new Error('Geolocation is not supported by this browser'));
       return;
     }
-    
     // Use a higher timeout (20 seconds instead of 10) and allow slightly older positions
     navigator.geolocation.getCurrentPosition(
       position => resolve(position),
@@ -218,64 +183,47 @@ const getCurrentPosition = () => {
     );
   });
 };
-
 // Show nearby users on the map
 export const showNearbyUsers = async () => {
   if (!mapInitialized || !map) {
-    console.warn('Map is not initialized, skipping user display');
     return 0;
   }
-  
   if (!auth.currentUser) {
-    console.warn('User must be logged in to show nearby users');
     return 0;
   }
-
   try {
     // Ensure Google Maps API is loaded
     if (!googleMapsApi) {
       googleMapsApi = await getGoogleMapsApi();
     }
-    
     // Clear existing markers
     clearMarkers();
-    
     // Clear existing listeners
     userListeners.forEach(unsubscribe => unsubscribe());
     userListeners = [];
-    
     // Subscribe to user locations in Realtime Database
     const locationsRef = ref(rtdb, 'locations');
     const unsubscribe = onValue(locationsRef, (snapshot) => {
       if (!map || !mapInitialized) {
-        console.warn('Map no longer available, not showing users');
         return;
       }
-      
       const locations = snapshot.val();
       if (!locations) return;
-      
       // Clear existing markers
       clearMarkers();
-      
       // Add marker for each user
       Object.entries(locations).forEach(([userId, data]) => {
         // Skip current user
         if (userId === auth.currentUser.uid) return;
-        
         const { latitude, longitude, displayName, timestamp } = data;
         if (!latitude || !longitude) return;
-        
         // Check if location update is recent (within the last 30 minutes)
         const isRecent = (Date.now() - timestamp) < 30 * 60 * 1000;
         if (!isRecent) return;
-        
         const position = { lat: latitude, lng: longitude };
-        
         try {
           // Create marker for user
           let marker;
-          
           if (googleMapsApi.maps.marker && googleMapsApi.maps.marker.AdvancedMarkerElement) {
             // Use advanced marker if available
             marker = new googleMapsApi.maps.marker.AdvancedMarkerElement({
@@ -300,7 +248,6 @@ export const showNearbyUsers = async () => {
               }
             });
           }
-          
           // Add click listener to marker
           const infoWindow = new googleMapsApi.maps.InfoWindow({
             content: `
@@ -310,51 +257,38 @@ export const showNearbyUsers = async () => {
               </div>
             `
           });
-          
           marker.addListener('click', () => {
             infoWindow.open(map, marker);
           });
-          
           markers.push(marker);
         } catch (markerError) {
-          console.error('Error creating marker:', markerError);
         }
       });
     });
-    
     userListeners.push(unsubscribe);
-    
     return markers.length;
   } catch (error) {
-    console.error('Error showing nearby users:', error);
     return 0; // Continue without throwing
   }
 };
-
 // Show alerts on the map
 export const showAlerts = async (alerts) => {
   if (!mapInitialized || !map) {
-    console.warn('Map is not initialized, skipping alert display');
     return 0;
   }
-
   try {
     // Ensure Google Maps API is loaded
     if (!googleMapsApi) {
       googleMapsApi = await getGoogleMapsApi();
     }
-    
     // Add marker for each alert
     alerts.forEach(alert => {
       try {
         const { id, location, userName, message, emergencyType, createdAt } = alert;
         if (!location || !location.latitude || !location.longitude) return;
-        
         const position = { lat: location.latitude, lng: location.longitude };
-        
         // Create marker for alert
         let marker;
-        
         if (googleMapsApi.maps.marker && googleMapsApi.maps.marker.AdvancedMarkerElement) {
           // Use advanced marker if available
           marker = new googleMapsApi.maps.marker.AdvancedMarkerElement({
@@ -380,7 +314,6 @@ export const showAlerts = async (alerts) => {
             zIndex: 50
           });
         }
-        
         // Add click listener to marker
         const infoWindow = new googleMapsApi.maps.InfoWindow({
           content: `
@@ -393,24 +326,18 @@ export const showAlerts = async (alerts) => {
             </div>
           `
         });
-        
         marker.addListener('click', () => {
           infoWindow.open(map, marker);
         });
-        
         markers.push(marker);
       } catch (markerError) {
-        console.error('Error creating alert marker:', markerError);
       }
     });
-    
     return markers.length;
   } catch (error) {
-    console.error('Error showing alerts:', error);
     return 0; // Continue without throwing
   }
 };
-
 // Clear all markers from the map
 export const clearMarkers = () => {
   try {
@@ -426,21 +353,17 @@ export const clearMarkers = () => {
           }
         }
       } catch (e) {
-        console.warn('Error clearing individual marker:', e);
       }
     });
   } catch (error) {
-    console.warn('Error clearing markers:', error);
   }
   markers = [];
 };
-
 // Clean up map resources
 export const cleanupMap = () => {
   try {
     // Clear markers
     clearMarkers();
-    
     // Clean up current location marker
     if (currentLocationMarker) {
       try {
@@ -452,35 +375,28 @@ export const cleanupMap = () => {
           currentLocationMarker.map = null;
         }
       } catch (error) {
-        console.warn('Error clearing current location marker:', error);
       }
       currentLocationMarker = null;
     }
-    
     // Clean up location circle
     if (locationCircle) {
       try {
         locationCircle.setMap(null);
       } catch (error) {
-        console.warn('Error clearing location circle:', error);
       }
       locationCircle = null;
     }
-    
     // Remove listeners
     userListeners.forEach(unsubscribe => {
       try {
         unsubscribe();
       } catch (error) {
-        console.warn('Error removing listener:', error);
       }
     });
     userListeners = [];
-    
     // Reset map state
     map = null;
     mapInitialized = false;
   } catch (error) {
-    console.warn('Error cleaning up map:', error);
   }
 }; 

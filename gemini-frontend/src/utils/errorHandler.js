@@ -4,8 +4,6 @@
  * @returns {string} User-friendly error message
  */
 export const handleFirebaseError = (error) => {
-  console.error('Firebase error:', error);
-  
   // Standard Firebase auth error codes
   if (error.code) {
     switch (error.code) {
@@ -33,25 +31,20 @@ export const handleFirebaseError = (error) => {
         return error.message || 'An unexpected error occurred.';
     }
   }
-  
   // Check for Firestore/RTDB permissions
   if (error.message) {
     if (error.message.includes('Missing or insufficient permissions')) {
       return 'You do not have permission to perform this action. Please log in again.';
     }
-    
     if (error.message.includes('PERMISSION_DENIED')) {
       return 'Database permission denied. Make sure you are logged in.';
     }
-    
     if (error.message.includes('network error')) {
       return 'Network error. Please check your internet connection.';
     }
   }
-  
   return 'An unexpected error occurred. Please try again.';
 };
-
 /**
  * Displays a notification to the user
  * @param {string} message - The message to display
@@ -61,12 +54,10 @@ export const handleFirebaseError = (error) => {
 export const showNotification = (message, type = 'info', duration = 5000) => {
   // Check if we're in a browser environment
   if (typeof window === 'undefined') return;
-  
   // Create notification element
   const notification = document.createElement('div');
   notification.className = `notification notification-${type}`;
   notification.textContent = message;
-  
   // Style the notification
   notification.style.position = 'fixed';
   notification.style.bottom = '20px';
@@ -78,7 +69,6 @@ export const showNotification = (message, type = 'info', duration = 5000) => {
   notification.style.zIndex = '9999';
   notification.style.opacity = '0';
   notification.style.transition = 'opacity 0.3s ease-in-out';
-  
   // Set color based on type
   switch (type) {
     case 'success':
@@ -97,15 +87,12 @@ export const showNotification = (message, type = 'info', duration = 5000) => {
       notification.style.backgroundColor = '#2196F3';
       notification.style.color = 'white';
   }
-  
   // Add to document
   document.body.appendChild(notification);
-  
   // Trigger animation
   setTimeout(() => {
     notification.style.opacity = '1';
   }, 10);
-  
   // Remove notification after duration
   setTimeout(() => {
     notification.style.opacity = '0';

@@ -1,6 +1,10 @@
 import firebase_admin
-from firebase_admin import credentials, auth, firestore
+from firebase_admin import credentials, auth, firestore, db as admin_db
 import os
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Get absolute path to the service account file
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -8,10 +12,15 @@ service_account_path = os.path.join(os.path.dirname(current_dir), 'serviceAccoun
 
 # Initialize Firebase Admin with service account
 cred = credentials.Certificate(service_account_path)
-firebase_app = firebase_admin.initialize_app(cred)
+firebase_app = firebase_admin.initialize_app(cred, {
+    'databaseURL': os.environ.get('FIREBASE_DATABASE_URL')
+})
 
 # Initialize Firestore DB
 db = firestore.client()
+
+# Get a reference to the Realtime Database
+rtdb = admin_db.reference()
 
 def verify_id_token(id_token):
     """
@@ -21,7 +30,7 @@ def verify_id_token(id_token):
         decoded_token = auth.verify_id_token(id_token)
         return decoded_token
     except Exception as e:
-        print(f"Error verifying token: {e}")
+        logger.error(f"Error verifying token: {e}")
         return None
 
 def get_user_data(user_id):
@@ -36,5 +45,5 @@ def get_user_data(user_id):
             return user_doc.to_dict()
         return None
     except Exception as e:
-        print(f"Error getting user data: {e}")
+        logger.error(f"Error getting user data: {e}")
         return None 

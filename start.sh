@@ -7,19 +7,21 @@ BLUE='\033[0;34m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# Load environment variables from .env file if it exists
+if [ -f gemini-backend/.env ]; then
+  export $(grep -v '^#' gemini-backend/.env | xargs)
+  echo -e "${GREEN}Environment variables loaded from .env${NC}"
+elif [ -f .env ]; then
+  export $(grep -v '^#' .env | xargs)
+  echo -e "${GREEN}Environment variables loaded from .env${NC}"
+fi
+
 # Check if Gemini API key is set
 if [ -z "$GEMINI_API_KEY" ]; then
-  echo -e "${BLUE}No GEMINI_API_KEY environment variable found.${NC}"
-  echo -n "Do you want to enter a Gemini API key now? (y/n): "
-  read -r answer
-  if [[ "$answer" =~ ^[Yy]$ ]]; then
-    echo -n "Enter your Gemini API key: "
-    read -r api_key
-    export GEMINI_API_KEY="$api_key"
-    echo -e "${GREEN}API key set for this session.${NC}"
-  else
-    echo -e "${RED}Warning: Using mock responses. Set GEMINI_API_KEY for real responses.${NC}"
-  fi
+  echo -e "${RED}ERROR: GEMINI_API_KEY not found!${NC}"
+  echo -e "${RED}Please create a .env file in gemini-backend/ with:${NC}"
+  echo -e "${RED}GEMINI_API_KEY=your_api_key_here${NC}"
+  exit 1
 fi
 
 # Function to kill processes on specific ports with better error handling
@@ -79,22 +81,35 @@ if ! ensure_ports_available; then
   exit 1
 fi
 
-# Ensure we're in the virtual environment
-if [ -d "venv" ]; then
-  source venv/bin/activate
+# Create and activate virtual environment if needed
+if [ ! -d "venv" ]; then
+  echo -e "${GREEN}Creating Python virtual environment...${NC}"
+  python3 -m venv venv
 fi
 
+# Activate virtual environment
+echo -e "${GREEN}Activating virtual environment...${NC}"
+source venv/bin/activate
+
 # Check if dependencies are installed
-if [ ! -d "venv" ] || [ ! -d "gemini-frontend/node_modules" ]; then
-  echo -e "${RED}Dependencies not found. Running setup...${NC}"
-  ./setup.sh
+if [ ! -f "venv/lib/python3.*/site-packages/flask/__init__.py" ]; then
+  echo -e "${GREEN}Installing Python dependencies...${NC}"
+  pip install --upgrade pip
+  pip install -r requirements.txt
+fi
+
+if [ ! -d "gemini-frontend/node_modules" ]; then
+  echo -e "${GREEN}Installing frontend dependencies...${NC}"
+  cd gemini-frontend
+  npm install
+  cd ..
 fi
 
 # Start backend
 echo -e "${GREEN}Starting Backend...${NC}"
 cd gemini-backend
-# Force debug mode and port 5001
-FLASK_DEBUG=1 python app.py > ../backend.log 2>&1 &
+# Use the virtual environment's Python
+FLASK_ENV=development FLASK_DEBUG=1 python app.py > ../backend.log 2>&1 &
 BACKEND_PID=$!
 cd ..
 
@@ -102,8 +117,16 @@ cd ..
 sleep 3
 if ! ps -p $BACKEND_PID > /dev/null; then
   echo -e "${RED}Backend failed to start. See backend.log for details.${NC}"
-  cat backend.log
+  cat backend.log | tail -20
   exit 1
+fi
+
+# Test backend health
+echo -e "${GREEN}Testing backend...${NC}"
+if curl -s http://localhost:5001/user/profile 2>/dev/null | grep -q "error"; then
+  echo -e "${GREEN}Backend is responding${NC}"
+else
+  echo -e "${RED}Backend is not responding properly${NC}"
 fi
 
 # Start frontend
@@ -117,7 +140,7 @@ cd ..
 sleep 5
 if ! ps -p $FRONTEND_PID > /dev/null; then
   echo -e "${RED}Frontend failed to start. See frontend.log for details.${NC}"
-  cat frontend.log
+  cat frontend.log | tail -20
   kill $BACKEND_PID 2>/dev/null
   exit 1
 fi
@@ -129,11 +152,7 @@ echo -e "${GREEN}================================================${NC}"
 echo -e "${GREEN}Gemini Alert is running!${NC}"
 echo -e "${BLUE}Backend:${NC} http://localhost:5001"
 echo -e "${BLUE}Frontend:${NC} http://localhost:8080"
-if [ -z "$GEMINI_API_KEY" ] || [ "$GEMINI_API_KEY" == "YOUR_API_KEY_HERE" ]; then
-  echo -e "${RED}Warning: Using mock Gemini responses${NC}"
-else
-  echo -e "${GREEN}Using real Gemini API responses${NC}"
-fi
+echo -e "${GREEN}Gemini API key is configured${NC}"
 echo -e "${GREEN}================================================${NC}"
 echo -e "Press ${RED}Ctrl+C${NC} to stop the application"
 

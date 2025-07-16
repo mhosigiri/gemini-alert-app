@@ -1,11 +1,35 @@
 from flask import Flask, jsonify, request, Response, stream_with_context
 from flask_cors import CORS
 import os
+from dotenv import load_dotenv
 import json
 import base64
 from functools import wraps
 import google.generativeai as genai
 from google.generativeai import types
+import time
+import logging
+
+# Helper function for distance calculation
+def haversine(lat1, lon1, lat2, lon2):
+    from math import radians, cos, sin, asin, sqrt
+    # Earth radius in km
+    R = 6371.0
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
+    c = 2 * asin(sqrt(a))
+    return R * c
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO if os.environ.get("FLASK_ENV") == "production" else logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Determine environment
 ENV = os.environ.get("FLASK_ENV", "development")
@@ -13,70 +37,69 @@ DEBUG = ENV == "development"
 PORT = int(os.environ.get("PORT", 5001))
 
 app = Flask(__name__)
-# Configure CORS based on environment
-if DEBUG:
-    # In development, allow all origins
-    CORS(app, resources={r"/*": {"origins": "*", "supports_credentials": True}})
-else:
-    # In production, allow the Vercel frontend domain
-    CORS(app, resources={r"/*": {"origins": [
-        "https://gemini-alert-app.vercel.app",
-        "https://gemini-alert-backend.vercel.app", 
-        "https://your-domain.com"
-    ], "supports_credentials": True}})
+# Configure CORS (allow all origins for API routes)
+CORS(
+    app,
+    resources={r"/api/*": {"origins": "*"}},
+    supports_credentials=True,
+    allow_headers="*",
+    expose_headers="*",
+    methods=["GET", "POST", "OPTIONS"]
+)
 
 # Configure Gemini API
-GEMINI_API_KEY = "AIzaSyD9t-pWBqbZoFBoGvROkD1YS5dxYBzZE40"
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = "gemini-2.5-pro-exp-03-25"
 GEMINI_AVAILABLE = False
 
-# More realistic emergency response when API isn't available
-MOCK_GEMINI_RESPONSE = """
-Based on your emergency situation, here are the recommended actions:
+# Log API key status (without exposing the key)
+if GEMINI_API_KEY:
+    logger.info(f"Gemini API key loaded (length: {len(GEMINI_API_KEY)})")
+else:
+    logger.warning("No Gemini API key found in environment variables")
 
-1. Remain calm and assess your surroundings for immediate dangers.
-2. For life-threatening emergencies, call 911 (or your local emergency number) immediately.
-3. If you're experiencing a medical emergency, apply basic first aid if safe to do so.
-4. For evacuation scenarios, follow official guidance and use designated routes.
-5. Stay informed through local emergency broadcasts or official alert systems.
-6. If safe, help others who may need assistance.
+# Health expert system prompt
+HEALTH_EXPERT_PROMPT = """
+You are a highly skilled health and emergency response expert. Your primary goal is to provide clear, accurate, and actionable advice for medical and safety emergencies.
 
-Remember: This is an automated emergency response system. No internet connection is 
-currently available to provide location-specific guidance.
+When asked about your identity or capabilities, respond with: "I am a health expert AI, here to provide guidance in emergency situations."
+
+For any emergency-related query, you must:
+1.  Provide critical and helpful information to ensure the user's safety.
+2.  Offer step-by-step instructions when appropriate.
+3.  Always include a disclaimer to contact professional emergency services (e.g., "call 911" or your local equivalent) as your advice is not a substitute for professional medical help.
 """
 
 try:
     # Initialize the Gemini client
     genai.configure(api_key=GEMINI_API_KEY)
     GEMINI_AVAILABLE = True
-    print(f"Gemini API configured successfully in {ENV} mode")
+    logger.info(f"Gemini API configured successfully in {ENV} mode")
 except Exception as e:
-    print(f"Failed to initialize Gemini client: {e}")
+    logger.error(f"Failed to initialize Gemini client: {e}")
     GEMINI_AVAILABLE = False
-    print("Using mock responses")
 
 # Skip Firebase in development mode
 firebase_admin_init = None
-if not DEBUG:
-    try:
-        import firebase_admin_init
-    except Exception as e:
-        print(f"Error importing firebase_admin_init: {e}")
-        print("Running without Firebase authentication")
+db = None
+rtdb = None
+try:
+    import firebase_admin_init
+    db = firebase_admin_init.db
+    rtdb = firebase_admin_init.rtdb
+    logger.info("Firebase Admin SDK initialized successfully.")
+except Exception as e:
+    logger.error(f"Error importing firebase_admin_init: {e}")
+    logger.warning("Running without Firebase integration.")
 
 # Authentication middleware
 def auth_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # For development, disable authentication requirement
-        if DEBUG:
-            # Add mock user to request
-            request.user = {"uid": "mock-user-id"}
-            return f(*args, **kwargs)
-            
+        # If Firebase Admin is not available, proceed with a mock user for demo purposes.
         if firebase_admin_init is None:
-            # If Firebase is not available, use mock authentication
-            request.user = {"uid": "mock-user-id"}
+            logger.warning("Firebase Admin SDK not initialized. Using mock user for request.")
+            request.user = {"uid": "mock-user-for-deployment"}
             return f(*args, **kwargs)
             
         auth_header = request.headers.get('Authorization')
@@ -106,13 +129,16 @@ def ask_gemini():
         
     data = request.json
     user_input = data.get("question", "")
+    
+    # Prepend the health expert prompt to the user's question
+    full_prompt = f"{HEALTH_EXPERT_PROMPT}\n\nUser Question: {user_input}"
 
     if not user_input:
         return jsonify({"error": "No question provided"}), 400
 
-    # Only check if Gemini is available, not if we're in debug mode
+    # Only check if Gemini is available
     if not GEMINI_AVAILABLE:
-        return jsonify({"response": MOCK_GEMINI_RESPONSE})
+        return jsonify({"error": "Gemini API is not available. Please check your API key configuration."}), 503
     
     try:
         # Configure the model
@@ -148,7 +174,7 @@ def ask_gemini():
         
         # Generate content
         response = model.generate_content(
-            user_input,
+            full_prompt,
             generation_config=generation_config,
             safety_settings=safety_settings
         )
@@ -157,13 +183,13 @@ def ask_gemini():
     except Exception as e:
         # Log the error and provide a fallback response
         error_details = str(e)
-        print(f"Gemini API error: {error_details}")
+        logger.error(f"Gemini API error: {error_details}")
         
         # Check if this is an API key error
         if "API key" in error_details.lower():
-            return jsonify({"response": f"Invalid or expired API key. Please check your Gemini API key.\n\n{MOCK_GEMINI_RESPONSE}"}), 200
+            return jsonify({"response": f"Invalid or expired API key. Please check your Gemini API key."}), 200
         else:
-            return jsonify({"response": f"I encountered an error when processing your question: {error_details}\n\n{MOCK_GEMINI_RESPONSE}"}), 200
+            return jsonify({"response": f"I encountered an error when processing your question: {error_details}"}), 200
 
 @app.route('/ask-stream', methods=['POST', 'OPTIONS'])
 @auth_required
@@ -176,15 +202,17 @@ def ask_gemini_stream():
     data = request.json
     user_input = data.get("question", "")
 
+    # Prepend the health expert prompt to the user's question
+    full_prompt = f"{HEALTH_EXPERT_PROMPT}\n\nUser Question: {user_input}"
+
     if not user_input:
         return jsonify({"error": "No question provided"}), 400
 
-    # Only check if Gemini is available, not if we're in debug mode
+    # Only check if Gemini is available
     if not GEMINI_AVAILABLE:
         def generate_mock():
-            # Split the mock response by lines and send each line as a chunk
-            for line in MOCK_GEMINI_RESPONSE.split('\n'):
-                yield f"data: {line}\n\n"
+            # Return error message instead of mock response
+            yield f"data: Gemini API is not available. Please check your API key configuration.\n\n"
                 
         return Response(stream_with_context(generate_mock()), 
                        content_type='text/event-stream')
@@ -223,7 +251,7 @@ def ask_gemini_stream():
         
         def generate():
             response = model.generate_content(
-                user_input,
+                full_prompt,
                 generation_config=generation_config,
                 safety_settings=safety_settings,
                 stream=True
@@ -238,16 +266,13 @@ def ask_gemini_stream():
     except Exception as e:
         # Log the error and provide a fallback response
         error_details = str(e)
-        print(f"Gemini API error in streaming: {error_details}")
+        logger.error(f"Gemini API error in streaming: {error_details}")
         
         def generate_error():
             if "API key" in error_details.lower():
                 yield f"data: Invalid or expired API key. Please check your Gemini API key.\n\n"
             else:
                 yield f"data: I encountered an error when processing your question: {error_details}\n\n"
-            
-            for line in MOCK_GEMINI_RESPONSE.split('\n'):
-                yield f"data: {line}\n\n"
                 
         return Response(stream_with_context(generate_error()), 
                        content_type='text/event-stream')
@@ -258,53 +283,153 @@ def get_user_profile():
     user_id = request.user['uid']
     
     # Get user data from Firebase
-    if DEBUG or firebase_admin_init is None:
-        # Use mock data in development mode
-        user_data = {
-            "displayName": "Demo User",
-            "email": "demo@example.com",
-            "location": {"latitude": 37.7749, "longitude": -122.4194},
-            "createdAt": "2024-03-29T00:00:00Z"
-        }
-    else:
-        user_data = firebase_admin_init.get_user_data(user_id)
+    if firebase_admin_init is None:
+        return jsonify({"error": "Firebase not initialized"}), 503
         
-        if not user_data:
-            # Fall back to mock data
-            user_data = {
-                "displayName": "Demo User",
-                "email": "demo@example.com",
-                "location": {"latitude": 37.7749, "longitude": -122.4194},
-                "createdAt": "2024-03-29T00:00:00Z"
-            }
+    user_data = firebase_admin_init.get_user_data(user_id)
+    
+    if not user_data:
+        return jsonify({"error": "User profile not found"}), 404
     
     return jsonify({"profile": user_data})
 
+@app.route('/api/location', methods=['POST', 'OPTIONS'])
+@auth_required
+def update_location():
+    # Handle preflight OPTIONS request
+    if request.method == 'OPTIONS':
+        response = app.make_default_options_response()
+        return response
+    
+    data = request.json
+    user_id = request.user['uid']
+    latitude = data.get('latitude')
+    longitude = data.get('longitude')
+    
+    if latitude is None or longitude is None:
+        return jsonify({"error": "Latitude and longitude are required"}), 400
+    
+    # In production, this would update the user's location in Firebase
+    if DEBUG:
+        logger.info(f"User {user_id} location updated: lat={latitude}, lng={longitude}")
+
+    if firebase_admin_init is None:
+        logger.warning("Firebase Admin not initialised – skipping location write")
+        return jsonify({"status": "accepted"}), 200
+
+    # TODO: implement actual write if needed.
+    return jsonify({"status": "success"}), 200
+
+@app.route('/api/nearest-users', methods=['POST', 'OPTIONS'])
+@auth_required
+def get_nearest_users():
+    # Handle preflight OPTIONS request
+    if request.method == 'OPTIONS':
+        response = app.make_default_options_response()
+        return response
+    
+    data = request.json
+    user_id = request.user['uid']
+    latitude = data.get('latitude')
+    longitude = data.get('longitude')
+    
+    if latitude is None or longitude is None:
+        return jsonify({"error": "Latitude and longitude are required"}), 400
+    
+    # Get all user locations from Firebase Realtime Database
+    if not rtdb:
+        return jsonify({"error": "Firebase Realtime Database not configured"}), 500
+
+    all_locations = rtdb.child('locations').get()
+    if not all_locations:
+        return jsonify({"nearest_users": []})
+
+    # Calculate distances and sort
+    users_with_distance = []
+    for uid, data in all_locations.items():
+        if uid == user_id:  # Exclude the requesting user
+            continue
+        
+        user_lat = data.get('latitude')
+        user_lng = data.get('longitude')
+        
+        if user_lat is None or user_lng is None:
+            continue
+            
+        distance = haversine(latitude, longitude, user_lat, user_lng)
+        users_with_distance.append({
+            'userId': uid,
+            'displayName': data.get('displayName', 'User'),
+            'latitude': user_lat,
+            'longitude': user_lng,
+            'distance_km': round(distance, 2)
+        })
+    
+    # Sort by distance and return top 4
+    users_with_distance.sort(key=lambda x: x['distance_km'])
+    nearest_users = users_with_distance[:4]
+    
+    return jsonify({"nearest_users": nearest_users})
+
+@app.route('/api/send-sos', methods=['POST', 'OPTIONS'])
+@auth_required
+def send_sos():
+    # Handle preflight OPTIONS request
+    if request.method == 'OPTIONS':
+        response = app.make_default_options_response()
+        return response
+    
+    data = request.json
+    user_id = request.user['uid']
+    latitude = data.get('latitude')
+    longitude = data.get('longitude')
+    message = data.get('message', '')
+    
+    if latitude is None or longitude is None:
+        return jsonify({"error": "Latitude and longitude are required"}), 400
+    
+    if not message:
+        return jsonify({"error": "Message is required"}), 400
+    
+    # Get nearest users (reuse logic from above)
+    # Get all user locations from Firebase Realtime Database
+    if not rtdb:
+        return jsonify({"error": "Firebase Realtime Database not configured"}), 500
+    
+    all_locations = rtdb.child('locations').get()
+    if not all_locations:
+        # In a real scenario, you might still send an alert even if there are no users to notify
+        return jsonify({"status": "sos_sent", "recipients": [], "message": "SOS sent, but no nearby users found."})
+    
+    # Calculate distances and get nearest 4 users
+    users_with_distance = []
+    for uid, data in all_locations.items():
+        if uid == user_id: continue # Exclude self
+        
+        user_lat = data.get('latitude')
+        user_lng = data.get('longitude')
+        if not user_lat or not user_lng: continue
+
+        distance = haversine(latitude, longitude, user_lat, user_lng)
+        users_with_distance.append({ 'userId': uid, 'distance_km': distance })
+
+    users_with_distance.sort(key=lambda x: x['distance_km'])
+    recipients = [u['userId'] for u in users_with_distance[:4]]
+    
+    # In production, this would:
+    # 1. Store the SOS alert in Firebase
+    # 2. Send push notifications to nearby users
+    # 3. Update real-time database for live tracking
+    
+    return jsonify({
+        "status": "sos_sent",
+        "recipients": recipients,
+        "alertId": f"alert_{user_id}_{int(time.time())}",
+        "message": "SOS alert sent to nearby users"
+    })
+
 @app.after_request
 def add_cors_headers(response):
-    """Add CORS headers to all responses"""
-    if DEBUG:
-        response.headers.add('Access-Control-Allow-Origin', '*')
-    else:
-        # Check the origin header and match it to our allowed origins
-        origin = request.headers.get('Origin')
-        allowed_origins = [
-            'https://gemini-alert-app.vercel.app',
-            'https://gemini-alert-backend.vercel.app',
-            'https://your-domain.com'
-        ]
-        if origin in allowed_origins:
-            response.headers.add('Access-Control-Allow-Origin', origin)
-        # Default fallback
-        else:
-            response.headers.add('Access-Control-Allow-Origin', 'https://gemini-alert-app.vercel.app')
-            
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    # Handle preflight requests
-    if request.method == 'OPTIONS':
-        response.headers.add('Access-Control-Max-Age', '3600')
     return response
 
 if __name__ == '__main__':
