@@ -1,6 +1,7 @@
 import { auth, db, rtdb } from '../firebase';
 import { doc, updateDoc, GeoPoint, serverTimestamp, setDoc } from 'firebase/firestore';
 import { ref, set, onValue } from 'firebase/database';
+import api from '../utils/api';
 
 // Options for geolocation
 const geoOptions = {
@@ -17,6 +18,13 @@ let watchId = null;
 
 // Start tracking user location
 export const startLocationTracking = async () => {
+  // Check privacy settings first
+  const privacySettings = getPrivacySettings();
+  if (!privacySettings.locationSharing) {
+    console.log('Location sharing is disabled in privacy settings');
+    return false;
+  }
+
   if (!navigator.geolocation) {
     console.error('Geolocation is not supported by this browser');
     return false;
@@ -28,11 +36,23 @@ export const startLocationTracking = async () => {
   }
 
   try {
-    // Watch position
+    // Get the update interval from privacy settings
+    const updateInterval = privacySettings.locationUpdateInterval || 30000;
+
+    // Watch position with custom interval
     watchId = navigator.geolocation.watchPosition(
-      position => updateUserLocation(position),
+      position => {
+        // Check if location sharing is still enabled before updating
+        const currentSettings = getPrivacySettings();
+        if (currentSettings.locationSharing) {
+          updateUserLocation(position);
+        } else {
+          // Stop tracking if disabled
+          stopLocationTracking();
+        }
+      },
       error => console.error('Error getting location:', error),
-      geoOptions
+      { ...geoOptions, maximumAge: updateInterval }
     );
     
     return true;
@@ -66,6 +86,19 @@ const updateUserLocation = async (position) => {
   const userId = auth.currentUser.uid;
 
   try {
+    // Update backend first
+    try {
+      await api.post('/api/location', {
+        userId,
+        latitude,
+        longitude
+      });
+      console.log('Backend location updated successfully');
+    } catch (backendError) {
+      console.warn('Error updating backend location:', backendError);
+      // Continue with Firebase updates even if backend fails
+    }
+
     // Check if we're on Vercel deployment
     const isVercelProduction = window.location.hostname.includes('vercel.app');
     
@@ -378,4 +411,98 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 
 const deg2rad = (deg) => {
   return deg * (Math.PI/180);
+}; 
+
+// Get nearest users from backend
+export const getNearestUsers = async (latitude, longitude) => {
+  if (!auth.currentUser) {
+    console.warn('User must be logged in to get nearest users');
+    return [];
+  }
+  
+  try {
+    const response = await api.post('/api/nearest-users', {
+      userId: auth.currentUser.uid,
+      latitude,
+      longitude
+    });
+    
+    return response.data.nearest_users || [];
+  } catch (error) {
+    console.error('Error getting nearest users from backend:', error);
+    // Fall back to mock data
+    return getMockNearbyUsers(latitude, longitude);
+  }
+};
+
+// Privacy and Security Functions
+
+// Check if location permission is granted
+export const checkLocationPermission = async () => {
+  if (!navigator.permissions) {
+    // Permissions API not supported
+    return 'unknown';
+  }
+  
+  try {
+    const result = await navigator.permissions.query({ name: 'geolocation' });
+    return result.state; // 'granted', 'denied', or 'prompt'
+  } catch (error) {
+    console.error('Error checking location permission:', error);
+    return 'unknown';
+  }
+};
+
+// Request location permission
+export const requestLocationPermission = async () => {
+  try {
+    // This will trigger the browser's permission prompt
+    const position = await getCurrentLocation();
+    return position ? 'granted' : 'denied';
+  } catch (error) {
+    if (error.code === 1) {
+      return 'denied';
+    }
+    return 'error';
+  }
+};
+
+// Location sharing preferences (stored in localStorage)
+export const getLocationSharingPreference = () => {
+  return localStorage.getItem('locationSharingEnabled') === 'true';
+};
+
+export const setLocationSharingPreference = (enabled) => {
+  localStorage.setItem('locationSharingEnabled', enabled ? 'true' : 'false');
+  
+  if (!enabled) {
+    // Stop tracking if user disables location sharing
+    stopLocationTracking();
+  }
+};
+
+// Get privacy settings
+export const getPrivacySettings = () => {
+  return {
+    locationSharing: getLocationSharingPreference(),
+    shareWithNearbyUsers: localStorage.getItem('shareWithNearbyUsers') !== 'false',
+    allowEmergencyTracking: localStorage.getItem('allowEmergencyTracking') !== 'false',
+    locationUpdateInterval: parseInt(localStorage.getItem('locationUpdateInterval') || '30000', 10)
+  };
+};
+
+// Update privacy settings
+export const updatePrivacySettings = (settings) => {
+  if (settings.locationSharing !== undefined) {
+    setLocationSharingPreference(settings.locationSharing);
+  }
+  if (settings.shareWithNearbyUsers !== undefined) {
+    localStorage.setItem('shareWithNearbyUsers', settings.shareWithNearbyUsers ? 'true' : 'false');
+  }
+  if (settings.allowEmergencyTracking !== undefined) {
+    localStorage.setItem('allowEmergencyTracking', settings.allowEmergencyTracking ? 'true' : 'false');
+  }
+  if (settings.locationUpdateInterval !== undefined) {
+    localStorage.setItem('locationUpdateInterval', settings.locationUpdateInterval.toString());
+  }
 }; 

@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^1.16.8",
+    "axios": "^1.10.0",
     "core-js": "^3.8.3",
     "firebase": "^11.5.0",
     "vue": "^3.2.13",

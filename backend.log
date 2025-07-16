@@ -1,11 +1,159 @@
+Gemini API key loaded (length: 39)
 Gemini API configured successfully in development mode
  * Serving Flask app 'app'
  * Debug mode: on
 [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
  * Running on all addresses (0.0.0.0)
  * Running on http://127.0.0.1:5001
- * Running on http://10.232.72.255:5001
+ * Running on http://10.232.82.81:5001
 [33mPress CTRL+C to quit[0m
  * Restarting with stat
  * Debugger is active!
- * Debugger PIN: 824-592-925
+ * Debugger PIN: 615-583-652
+127.0.0.1 - - [15/Jul/2025 17:34:27] "GET /user/profile HTTP/1.1" 200 -
+ * Detected change in '/Users/arnissama/Desktop/gemini-alert-app/gemini-backend/app.py', reloading
+Gemini API key loaded (length: 39)
+Gemini API configured successfully in development mode
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 615-583-652
+127.0.0.1 - - [15/Jul/2025 17:52:01] "OPTIONS /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:52:01] "OPTIONS /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:52:01] "OPTIONS /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:52:01] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:52:01] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:52:01] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:52:26] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:52:31] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:53:01] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:53:27] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:53:31] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:54:01] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:54:28] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:54:31] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:55:01] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:55:28] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:55:31] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:56:01] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:56:29] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:56:31] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:57:01] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:57:53] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 17:58:28] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 18:00:28] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 18:01:28] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 18:02:28] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 18:02:38] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 18:02:38] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 18:02:38] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 18:02:38] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:02:10] "OPTIONS /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:02:10] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:02:10] "OPTIONS /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:02:10] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:02:10] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:02:21] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:02:21] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:02:21] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:02:51] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:02:51] "OPTIONS /api/send-sos HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:02:51] "POST /api/send-sos HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:03:08] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:03:21] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:03:51] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:04:09] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:04:21] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:04:51] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:05:09] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:05:21] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:05:51] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:06:10] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:06:21] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:06:30] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:06:30] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:06:30] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:06:35] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:06:35] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:06:36] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:06:54] "POST /api/send-sos HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:07:05] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:07:11] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:07:35] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:08:05] "POST /api/nearest-users HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:08:11] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:08:17] "POST /api/location HTTP/1.1" 200 -
+ * Detected change in '/Users/arnissama/Desktop/gemini-alert-app/gemini-backend/firebase_admin_init.py', reloading
+Gemini API key loaded (length: 39)
+Gemini API configured successfully in development mode
+User mock-user-id location updated: lat=32.732003815567765, lng=-97.11281459609775
+User mock-user-id location updated: lat=32.732003815567765, lng=-97.11281459609775
+User mock-user-id location updated: lat=32.73196282153828, lng=-97.11283635160484
+User mock-user-id location updated: lat=32.73198075737159, lng=-97.11291817736058
+User mock-user-id location updated: lat=32.731934991680866, lng=-97.11275250998415
+User mock-user-id location updated: lat=32.73197627505567, lng=-97.11294783122989
+User mock-user-id location updated: lat=32.73194315350198, lng=-97.11292813128847
+User mock-user-id location updated: lat=32.73198818718923, lng=-97.11284843410526
+User mock-user-id location updated: lat=32.73198818718923, lng=-97.11284843410526
+User mock-user-id location updated: lat=32.731952662517045, lng=-97.11288548067942
+User mock-user-id location updated: lat=32.731952662517045, lng=-97.11288548067942
+User mock-user-id location updated: lat=32.731952662517045, lng=-97.11288548067942
+User mock-user-id location updated: lat=32.731952662517045, lng=-97.11288548067942
+User mock-user-id location updated: lat=32.73199489028316, lng=-97.11281181459134
+User mock-user-id location updated: lat=32.73197409964925, lng=-97.11280426625073
+User mock-user-id location updated: lat=32.731974085238726, lng=-97.1128042811179
+User mock-user-id location updated: lat=32.731974090243085, lng=-97.11280427783862
+User mock-user-id location updated: lat=32.731974090243085, lng=-97.11280427783862
+User mock-user-id location updated: lat=32.731974090243085, lng=-97.11280427783862
+User mock-user-id location updated: lat=32.731974090243085, lng=-97.11280427783862
+User mock-user-id location updated: lat=32.731974090243085, lng=-97.11280427783862
+User mock-user-id location updated: lat=32.73197408897003, lng=-97.11280427867248
+User mock-user-id location updated: lat=32.731949389481876, lng=-97.11293581587476
+User mock-user-id location updated: lat=32.73194667928128, lng=-97.11275554424276
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 615-583-652
+ * Detected change in '/Users/arnissama/Desktop/gemini-alert-app/gemini-backend/app.py', reloading
+Gemini API key loaded (length: 39)
+Gemini API configured successfully in development mode
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 615-583-652
+127.0.0.1 - - [15/Jul/2025 19:08:35] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:09:05] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:09:55] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:10:25] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:10:45] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:10:55] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:10:55] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:10:58] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:11:08] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:11:25] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:11:25] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:11:36] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:11:36] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:11:36] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:12:06] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:12:36] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:13:19] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:13:19] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:13:19] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:13:19] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:13:19] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:13:36] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:13:49] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:14:06] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:14:39] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:14:56] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:15:09] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:15:26] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:15:39] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:15:56] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:16:09] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:16:26] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:16:27] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:16:27] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+127.0.0.1 - - [15/Jul/2025 19:16:27] "POST /api/location HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:16:33] "POST /api/send-sos HTTP/1.1" 200 -
+127.0.0.1 - - [15/Jul/2025 19:16:57] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/multiprocessing/resource_tracker.py:254: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '

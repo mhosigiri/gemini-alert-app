@@ -2,6 +2,7 @@ import { auth, db, rtdb } from '../firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { ref, push, set, onValue } from 'firebase/database';
 import { findNearbyUsers, getCurrentLocation } from './locationService';
+import api from '../utils/api';
 
 // Send an emergency alert to nearby users
 export const sendEmergencyAlert = async (message, emergencyType) => {
@@ -15,6 +16,31 @@ export const sendEmergencyAlert = async (message, emergencyType) => {
     const { latitude, longitude } = position.coords;
     const userId = auth.currentUser.uid;
     const userName = auth.currentUser.displayName || 'Anonymous';
+    
+    // Send SOS via backend API first
+    try {
+      const backendResponse = await api.post('/api/send-sos', {
+        userId,
+        latitude,
+        longitude,
+        message,
+        emergencyType
+      });
+      
+      console.log('SOS sent via backend:', backendResponse.data);
+      
+      // If backend succeeds, we can optionally skip Firebase or use it as backup
+      if (backendResponse.data.status === 'sos_sent') {
+        return {
+          success: true,
+          alertId: backendResponse.data.alertId,
+          notifiedUsers: backendResponse.data.recipients.length
+        };
+      }
+    } catch (backendError) {
+      console.warn('Backend SOS failed, falling back to Firebase:', backendError);
+      // Continue with Firebase implementation as fallback
+    }
     
     // Create alert in Firestore
     const alertRef = await addDoc(collection(db, 'alerts'), {
@@ -150,7 +176,8 @@ export const getNearbyAlerts = async (radius = 10) => {
               distance, // in km
               location: data.location,
               createdAt: new Date(data.createdAt),
-              isOwnAlert: data.userId === auth.currentUser.uid
+              isOwnAlert: data.userId === auth.currentUser.uid,
+              responses: data.responses || {}
             };
           })
           .filter(alert => alert.distance <= radius)

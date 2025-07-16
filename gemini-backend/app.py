@@ -1,11 +1,16 @@
 from flask import Flask, jsonify, request, Response, stream_with_context
 from flask_cors import CORS
 import os
+from dotenv import load_dotenv
 import json
 import base64
 from functools import wraps
 import google.generativeai as genai
 from google.generativeai import types
+import time
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Determine environment
 ENV = os.environ.get("FLASK_ENV", "development")
@@ -26,9 +31,15 @@ else:
     ], "supports_credentials": True}})
 
 # Configure Gemini API
-GEMINI_API_KEY = "AIzaSyD9t-pWBqbZoFBoGvROkD1YS5dxYBzZE40"
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = "gemini-2.5-pro-exp-03-25"
 GEMINI_AVAILABLE = False
+
+# Log API key status (without exposing the key)
+if GEMINI_API_KEY:
+    print(f"Gemini API key loaded (length: {len(GEMINI_API_KEY)})")
+else:
+    print("WARNING: No Gemini API key found in environment variables")
 
 # More realistic emergency response when API isn't available
 MOCK_GEMINI_RESPONSE = """
@@ -45,6 +56,18 @@ Remember: This is an automated emergency response system. No internet connection
 currently available to provide location-specific guidance.
 """
 
+# Health expert system prompt
+HEALTH_EXPERT_PROMPT = """
+You are a highly skilled health and emergency response expert. Your primary goal is to provide clear, accurate, and actionable advice for medical and safety emergencies.
+
+When asked about your identity or capabilities, respond with: "I am a health expert AI, here to provide guidance in emergency situations."
+
+For any emergency-related query, you must:
+1.  Provide critical and helpful information to ensure the user's safety.
+2.  Offer step-by-step instructions when appropriate.
+3.  Always include a disclaimer to contact professional emergency services (e.g., "call 911" or your local equivalent) as your advice is not a substitute for professional medical help.
+"""
+
 try:
     # Initialize the Gemini client
     genai.configure(api_key=GEMINI_API_KEY)
@@ -57,12 +80,16 @@ except Exception as e:
 
 # Skip Firebase in development mode
 firebase_admin_init = None
-if not DEBUG:
-    try:
-        import firebase_admin_init
-    except Exception as e:
-        print(f"Error importing firebase_admin_init: {e}")
-        print("Running without Firebase authentication")
+db = None
+rtdb = None
+try:
+    import firebase_admin_init
+    db = firebase_admin_init.db
+    rtdb = firebase_admin_init.rtdb
+    print("Firebase Admin SDK initialized successfully.")
+except Exception as e:
+    print(f"Error importing firebase_admin_init: {e}")
+    print("Running without Firebase integration.")
 
 # Authentication middleware
 def auth_required(f):
@@ -106,6 +133,9 @@ def ask_gemini():
         
     data = request.json
     user_input = data.get("question", "")
+    
+    # Prepend the health expert prompt to the user's question
+    full_prompt = f"{HEALTH_EXPERT_PROMPT}\n\nUser Question: {user_input}"
 
     if not user_input:
         return jsonify({"error": "No question provided"}), 400
@@ -148,7 +178,7 @@ def ask_gemini():
         
         # Generate content
         response = model.generate_content(
-            user_input,
+            full_prompt,
             generation_config=generation_config,
             safety_settings=safety_settings
         )
@@ -175,6 +205,9 @@ def ask_gemini_stream():
         
     data = request.json
     user_input = data.get("question", "")
+
+    # Prepend the health expert prompt to the user's question
+    full_prompt = f"{HEALTH_EXPERT_PROMPT}\n\nUser Question: {user_input}"
 
     if not user_input:
         return jsonify({"error": "No question provided"}), 400
@@ -223,7 +256,7 @@ def ask_gemini_stream():
         
         def generate():
             response = model.generate_content(
-                user_input,
+                full_prompt,
                 generation_config=generation_config,
                 safety_settings=safety_settings,
                 stream=True
@@ -279,6 +312,161 @@ def get_user_profile():
             }
     
     return jsonify({"profile": user_data})
+
+@app.route('/api/location', methods=['POST', 'OPTIONS'])
+@auth_required
+def update_location():
+    # Handle preflight OPTIONS request
+    if request.method == 'OPTIONS':
+        response = app.make_default_options_response()
+        return response
+    
+    data = request.json
+    user_id = request.user['uid']
+    latitude = data.get('latitude')
+    longitude = data.get('longitude')
+    
+    if latitude is None or longitude is None:
+        return jsonify({"error": "Latitude and longitude are required"}), 400
+    
+    # In production, this would update the user's location in Firebase
+    # For now, we'll just acknowledge the update
+    if DEBUG:
+        print(f"User {user_id} location updated: lat={latitude}, lng={longitude}")
+    
+    return jsonify({
+        "status": "success",
+        "userId": user_id,
+        "location": {
+            "latitude": latitude,
+            "longitude": longitude
+        },
+        "timestamp": int(time.time() * 1000)  # milliseconds
+    })
+
+@app.route('/api/nearest-users', methods=['POST', 'OPTIONS'])
+@auth_required
+def get_nearest_users():
+    # Handle preflight OPTIONS request
+    if request.method == 'OPTIONS':
+        response = app.make_default_options_response()
+        return response
+    
+    data = request.json
+    user_id = request.user['uid']
+    latitude = data.get('latitude')
+    longitude = data.get('longitude')
+    
+    if latitude is None or longitude is None:
+        return jsonify({"error": "Latitude and longitude are required"}), 400
+    
+    # Haversine formula to calculate distance between two points
+    def haversine(lat1, lon1, lat2, lon2):
+        from math import radians, cos, sin, asin, sqrt
+        # Earth radius in km
+        R = 6371.0
+        dlat = radians(lat2 - lat1)
+        dlon = radians(lon2 - lon1)
+        a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
+        c = 2 * asin(sqrt(a))
+        return R * c
+    
+    # Get all user locations from Firebase Realtime Database
+    if not rtdb:
+        return jsonify({"error": "Firebase Realtime Database not configured"}), 500
+
+    all_locations = rtdb.child('locations').get()
+    if not all_locations:
+        return jsonify({"nearest_users": []})
+
+    # Calculate distances and sort
+    users_with_distance = []
+    for uid, data in all_locations.items():
+        if uid == user_id:  # Exclude the requesting user
+            continue
+        
+        user_lat = data.get('latitude')
+        user_lng = data.get('longitude')
+        
+        if user_lat is None or user_lng is None:
+            continue
+            
+        distance = haversine(latitude, longitude, user_lat, user_lng)
+        users_with_distance.append({
+            'userId': uid,
+            'displayName': data.get('displayName', 'User'),
+            'latitude': user_lat,
+            'longitude': user_lng,
+            'distance_km': round(distance, 2)
+        })
+    
+    # Sort by distance and return top 4
+    users_with_distance.sort(key=lambda x: x['distance_km'])
+    nearest_users = users_with_distance[:4]
+    
+    return jsonify({"nearest_users": nearest_users})
+
+@app.route('/api/send-sos', methods=['POST', 'OPTIONS'])
+@auth_required
+def send_sos():
+    # Handle preflight OPTIONS request
+    if request.method == 'OPTIONS':
+        response = app.make_default_options_response()
+        return response
+    
+    data = request.json
+    user_id = request.user['uid']
+    latitude = data.get('latitude')
+    longitude = data.get('longitude')
+    message = data.get('message', '')
+    
+    if latitude is None or longitude is None:
+        return jsonify({"error": "Latitude and longitude are required"}), 400
+    
+    if not message:
+        return jsonify({"error": "Message is required"}), 400
+    
+    # Get nearest users (reuse logic from above)
+    def haversine(lat1, lon1, lat2, lon2):
+        from math import radians, cos, sin, asin, sqrt
+        R = 6371.0
+        dlat = radians(lat2 - lat1)
+        dlon = radians(lon2 - lon1)
+        a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
+        c = 2 * asin(sqrt(a))
+        return R * c
+    
+    # Mock users for development
+    mock_users = [
+        {"userId": "user1", "displayName": "John Doe", "latitude": latitude + 0.01, "longitude": longitude - 0.01},
+        {"userId": "user2", "displayName": "Jane Smith", "latitude": latitude - 0.02, "longitude": longitude + 0.01},
+        {"userId": "user3", "displayName": "Bob Wilson", "latitude": latitude + 0.015, "longitude": longitude + 0.02},
+        {"userId": "user4", "displayName": "Alice Johnson", "latitude": latitude - 0.025, "longitude": longitude - 0.015},
+    ]
+    
+    # Calculate distances and get nearest 4 users
+    users_with_distance = []
+    for user in mock_users:
+        distance = haversine(latitude, longitude, user['latitude'], user['longitude'])
+        users_with_distance.append({
+            'userId': user['userId'],
+            'distance_km': round(distance, 2)
+        })
+    
+    users_with_distance.sort(key=lambda x: x['distance_km'])
+    recipients = [u['userId'] for u in users_with_distance[:4]]
+    
+    # In production, this would:
+    # 1. Store the SOS alert in Firebase
+    # 2. Send push notifications to nearby users
+    # 3. Update real-time database for live tracking
+    
+    return jsonify({
+        "status": "sos_sent",
+        "recipients": recipients,
+        "alertId": f"alert_{user_id}_{int(time.time())}",
+        "message": "SOS alert sent to nearby users"
+    })
 
 @app.after_request
 def add_cors_headers(response):

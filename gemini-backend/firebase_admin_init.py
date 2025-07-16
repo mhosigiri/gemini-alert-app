@@ -1,5 +1,5 @@
 import firebase_admin
-from firebase_admin import credentials, auth, firestore
+from firebase_admin import credentials, auth, firestore, db as admin_db
 import os
 
 # Get absolute path to the service account file
@@ -8,10 +8,15 @@ service_account_path = os.path.join(os.path.dirname(current_dir), 'serviceAccoun
 
 # Initialize Firebase Admin with service account
 cred = credentials.Certificate(service_account_path)
-firebase_app = firebase_admin.initialize_app(cred)
+firebase_app = firebase_admin.initialize_app(cred, {
+    'databaseURL': os.environ.get('FIREBASE_DATABASE_URL')
+})
 
 # Initialize Firestore DB
 db = firestore.client()
+
+# Get a reference to the Realtime Database
+rtdb = admin_db.reference()
 
 def verify_id_token(id_token):
     """

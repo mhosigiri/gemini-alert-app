@@ -6,6 +6,7 @@
       </div>
       <div class="user-info" v-if="user">
         <span>{{ user.displayName || user.email }}</span>
+        <button @click="showPrivacySettings = true" class="settings-btn">⚙️ Privacy</button>
         <button @click="logout" class="logout-btn">Sign Out</button>
       </div>
     </header>
@@ -212,6 +213,15 @@
               <span>{{ formatTime(alert.createdAt) }}</span>
             </div>
           </div>
+          <div v-if="Object.keys(alert.responses || {}).length > 0" class="alert-responses">
+            <h4>Responses:</h4>
+            <ul>
+              <li v-for="response in alert.responses" :key="response.userId">
+                <strong>{{ response.userName }}:</strong> {{ response.message }}
+                <span class="response-time">{{ formatTime(response.timestamp) }}</span>
+              </li>
+            </ul>
+          </div>
           <div class="alert-actions" v-if="!alert.isOwnAlert">
             <button @click="respondToAlert(alert.id)" class="respond-btn">Respond</button>
           </div>
@@ -236,6 +246,13 @@
         </div>
       </div>
     </div>
+
+    <div v-if="showPrivacySettings" class="modal-overlay">
+      <div class="modal-content privacy-modal">
+        <button @click="showPrivacySettings = false" class="close-btn">×</button>
+        <PrivacySettings />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -247,7 +264,10 @@ import { signOut, onAuthStateChanged } from 'firebase/auth'
 import {
   startLocationTracking,
   stopLocationTracking,
-  findNearbyUsers
+  findNearbyUsers,
+  getPrivacySettings,
+  getNearestUsers,
+  getCurrentLocation
 } from '../services/locationService'
 import {
   sendEmergencyAlert,
@@ -262,9 +282,14 @@ import {
   cleanupMap
 } from '../services/mapService'
 import { askGemini, askGeminiStream } from '../services/geminiService'
+import PrivacySettings from '../components/PrivacySettings.vue'
 
 export default {
   name: 'HomePage',
+  
+  components: {
+    PrivacySettings
+  },
 
   setup() {
     // User state
@@ -277,6 +302,7 @@ export default {
 
     // UI state
     const showGeminiPanel = ref(false)
+    const showPrivacySettings = ref(false)
 
     // Alert form
     const alertMessage = ref('')
@@ -415,6 +441,13 @@ export default {
 
     const refreshNearbyUsers = async () => {
       try {
+        // Check privacy settings
+        const privacySettings = getPrivacySettings()
+        if (!privacySettings.shareWithNearbyUsers) {
+          nearbyUsers.value = []
+          return
+        }
+
         if (mockLocation.value) {
           // Use mock data for development
           nearbyUsers.value = [
@@ -425,9 +458,19 @@ export default {
           return
         }
 
-        // Find users within 5km
-        const users = await findNearbyUsers(5)
-        nearbyUsers.value = users
+        // Get current location
+        const position = await getCurrentLocation()
+        const { latitude, longitude } = position.coords
+        
+        // Get nearest users from backend
+        const users = await getNearestUsers(latitude, longitude)
+        nearbyUsers.value = users.map(user => ({
+          uid: user.userId,
+          displayName: user.displayName,
+          distance: user.distance_km,
+          latitude: user.latitude,
+          longitude: user.longitude
+        }))
 
         // Show users on map
         if (mapAvailable.value) {
@@ -636,6 +679,9 @@ export default {
     
     // Helper functions
     const formatDistance = (distance) => {
+      if (typeof distance !== 'number') {
+        return '...';
+      }
       if (distance < 1) {
         return `${Math.round(distance * 1000)} m`
       }
@@ -813,10 +859,26 @@ export default {
         const userInterval = setInterval(refreshNearbyUsers, 30000) // Every 30 seconds
         const alertInterval = setInterval(refreshNearbyAlerts, 15000) // Every 15 seconds
         
+        // Listen for privacy settings changes
+        const handlePrivacyUpdate = (event) => {
+          const { detail } = event
+          if (detail.locationSharing !== undefined) {
+            if (detail.locationSharing) {
+              startTracking()
+            } else {
+              locationTracking.value = false
+              locationStatus.value = 'Location sharing disabled'
+            }
+          }
+        }
+        
+        window.addEventListener('privacy-settings-updated', handlePrivacyUpdate)
+        
         // Clean up intervals on component unmount
         onBeforeUnmount(() => {
           clearInterval(userInterval)
           clearInterval(alertInterval)
+          window.removeEventListener('privacy-settings-updated', handlePrivacyUpdate)
         })
         
         // Initialize speech recognition
@@ -866,7 +928,8 @@ export default {
       speakResponse,
       copyMessage,
       copyResponse,
-      isMockResponse
+      isMockResponse,
+      showPrivacySettings
     }
   }
 }
@@ -897,6 +960,21 @@ export default {
   display: flex;
   align-items: center;
   gap: 1rem;
+}
+
+.settings-btn {
+  background-color: transparent;
+  border: 1px solid #3f51b5;
+  color: #3f51b5;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+}
+
+.settings-btn:hover {
+  background-color: #3f51b5;
+  color: white;
 }
 
 .logout-btn {
@@ -1407,6 +1485,37 @@ export default {
   color: #757575;
 }
 
+.alert-responses {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+}
+
+.alert-responses h4 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  color: #333;
+}
+
+.alert-responses ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.alert-responses li {
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+  color: #555;
+}
+
+.response-time {
+  font-size: 0.75rem;
+  color: #999;
+  margin-left: 0.5rem;
+}
+
 .alert-actions {
   display: flex;
   justify-content: flex-end;
@@ -1487,5 +1596,30 @@ export default {
   background-color: #e0e0e0;
   color: #9e9e9e;
   cursor: not-allowed;
+}
+
+.privacy-modal {
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.privacy-modal .close-btn {
+  align-self: flex-end;
+  background-color: #f0f0f0;
+  border: 1px solid #ccc;
+  border-radius: 50%;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.privacy-modal .close-btn:hover {
+  background-color: #e0e0e0;
 }
 </style>
