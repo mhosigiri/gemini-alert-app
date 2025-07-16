@@ -1,141 +1,181 @@
-Gemini API key loaded (length: 39)
-Gemini API configured successfully in development mode
-Error importing firebase_admin_init: [Errno 2] No such file or directory: '/Users/arnissama/Desktop/gemini-alert-app/serviceAccountKey.json'
-Running without Firebase integration.
+2025-07-15 19:59:28,713 - __main__ - INFO - Gemini API key loaded (length: 39)
+2025-07-15 19:59:28,713 - __main__ - INFO - Gemini API configured successfully in development mode
+2025-07-15 19:59:28,770 - __main__ - ERROR - Error importing firebase_admin_init: [Errno 2] No such file or directory: '/Users/arnissama/Desktop/gemini-alert-app/serviceAccountKey.json'
+2025-07-15 19:59:28,770 - __main__ - WARNING - Running without Firebase integration.
  * Serving Flask app 'app'
  * Debug mode: on
-[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+2025-07-15 19:59:28,860 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
  * Running on all addresses (0.0.0.0)
  * Running on http://127.0.0.1:5001
  * Running on http://10.232.82.81:5001
-[33mPress CTRL+C to quit[0m
- * Restarting with stat
- * Debugger is active!
- * Debugger PIN: 615-583-652
-127.0.0.1 - - [15/Jul/2025 19:37:40] "[35m[1mGET /user/profile HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:37:49] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:37:49] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:37:49] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:38:19] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:38:21] "[35m[1mOPTIONS /api/send-sos HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:38:28] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:38:32] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:38:32] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:38:32] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:38:42] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:38:42] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:38:49] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:39:12] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:39:12] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:39:12] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:39:19] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:39:42] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:39:43] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:39:49] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:40:19] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:40:34] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:40:43] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:40:44] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:40:44] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:40:44] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:40:49] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:41:05] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:41:05] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:41:12] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:41:19] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:41:42] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:41:43] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:41:49] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:41:58] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:42:08] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:42:19] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:42:28] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:42:38] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:42:44] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:42:44] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:42:44] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:42:44] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:42:44] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:42:49] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:42:50] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:42:51] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:42:58] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:00] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:01] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:08] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:11] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:13] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:19] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:20] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:21] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:22] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:28] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:30] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:31] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:38] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:43] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:44] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:44] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:44] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:44] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:44] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:44] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:49] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:50] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:51] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:52] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:58] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:43:58] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:00] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:01] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:08] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:11] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:13] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:19] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:20] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:20] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:21] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:22] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:28] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:28] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:30] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:31] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:38] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:43] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:45] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:45] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:45] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:45] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:45] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:45] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:49] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:50] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:50] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:51] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:52] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:52] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:52] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:52] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:52] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:52] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:52] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:52] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:52] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:52] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:52] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:52] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:52] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:52] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:52] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:52] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:52] "[35m[1mOPTIONS /api/location HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:58] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:58] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:58] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:44:58] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:45:00] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:45:01] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:45:08] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
-127.0.0.1 - - [15/Jul/2025 19:45:09] "[35m[1mOPTIONS /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 19:59:28,860 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-07-15 19:59:28,860 - werkzeug - INFO -  * Restarting with stat
+2025-07-15 19:59:29,079 - __main__ - INFO - Gemini API key loaded (length: 39)
+2025-07-15 19:59:29,079 - __main__ - INFO - Gemini API configured successfully in development mode
+2025-07-15 19:59:29,111 - __main__ - ERROR - Error importing firebase_admin_init: [Errno 2] No such file or directory: '/Users/arnissama/Desktop/gemini-alert-app/serviceAccountKey.json'
+2025-07-15 19:59:29,111 - __main__ - WARNING - Running without Firebase integration.
+2025-07-15 19:59:29,123 - werkzeug - WARNING -  * Debugger is active!
+2025-07-15 19:59:29,130 - werkzeug - INFO -  * Debugger PIN: 615-583-652
+2025-07-15 19:59:31,223 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 19:59:31] "[35m[1mGET /user/profile HTTP/1.1[0m" 503 -
+2025-07-15 20:00:06,592 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:00:06] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:00:06,608 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:00:06] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:00:06,609 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:00:06] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:00:27,135 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:00:27] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:00:27,165 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:00:27] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:00:27,167 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:00:27] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:00:55,026 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:00:55] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:00:57,114 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:00:57] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:01:27,112 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:01:27] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:01:33,120 - werkzeug - INFO -  * Detected change in '/Users/arnissama/Desktop/gemini-alert-app/gemini-backend/app.py', reloading
+2025-07-15 20:01:33,189 - werkzeug - INFO -  * Restarting with stat
+2025-07-15 20:01:33,627 - __main__ - INFO - Gemini API key loaded (length: 39)
+2025-07-15 20:01:33,627 - __main__ - INFO - Gemini API configured successfully in development mode
+2025-07-15 20:01:33,679 - __main__ - ERROR - Error importing firebase_admin_init: [Errno 2] No such file or directory: '/Users/arnissama/Desktop/gemini-alert-app/serviceAccountKey.json'
+2025-07-15 20:01:33,679 - __main__ - WARNING - Running without Firebase integration.
+2025-07-15 20:01:33,701 - werkzeug - WARNING -  * Debugger is active!
+2025-07-15 20:01:33,710 - werkzeug - INFO -  * Debugger PIN: 615-583-652
+2025-07-15 20:01:40,820 - werkzeug - INFO -  * Detected change in '/Users/arnissama/Desktop/gemini-alert-app/gemini-backend/app.py', reloading
+2025-07-15 20:01:40,862 - werkzeug - INFO -  * Restarting with stat
+2025-07-15 20:01:41,225 - __main__ - INFO - Gemini API key loaded (length: 39)
+2025-07-15 20:01:41,225 - __main__ - INFO - Gemini API configured successfully in development mode
+2025-07-15 20:01:41,276 - __main__ - ERROR - Error importing firebase_admin_init: [Errno 2] No such file or directory: '/Users/arnissama/Desktop/gemini-alert-app/serviceAccountKey.json'
+2025-07-15 20:01:41,276 - __main__ - WARNING - Running without Firebase integration.
+2025-07-15 20:01:41,292 - werkzeug - WARNING -  * Debugger is active!
+2025-07-15 20:01:41,297 - werkzeug - INFO -  * Debugger PIN: 615-583-652
+2025-07-15 20:01:56,051 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:01:56] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:01:56,051 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:01:56] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:01:56,175 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:01:56] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:02:23,552 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:02:23] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:02:23,553 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:02:23] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:02:23,636 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:02:23] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:02:25,992 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:02:25] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:02:26,010 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:02:26] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:02:26,065 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:02:26] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:02:55,979 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:02:55] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:02:56,470 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:02:56] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:03:25,978 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:03:25] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:03:55,975 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:03:55] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:03:57,036 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:03:57] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:04:25,983 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:04:25] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:04:55,974 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:04:55] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:04:59,024 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:04:59] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:05:26,448 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:05:26] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:05:56,470 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:05:56] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:06:40,462 - werkzeug - INFO -  * Detected change in '/Users/arnissama/Desktop/gemini-alert-app/gemini-backend/app.py', reloading
+2025-07-15 20:06:40,533 - werkzeug - INFO -  * Restarting with stat
+2025-07-15 20:06:41,030 - __main__ - INFO - Gemini API key loaded (length: 39)
+2025-07-15 20:06:41,030 - __main__ - INFO - Gemini API configured successfully in development mode
+2025-07-15 20:06:41,081 - __main__ - ERROR - Error importing firebase_admin_init: [Errno 2] No such file or directory: '/Users/arnissama/Desktop/gemini-alert-app/serviceAccountKey.json'
+2025-07-15 20:06:41,081 - __main__ - WARNING - Running without Firebase integration.
+2025-07-15 20:06:41,100 - werkzeug - WARNING -  * Debugger is active!
+2025-07-15 20:06:41,109 - werkzeug - INFO -  * Debugger PIN: 615-583-652
+2025-07-15 20:06:56,453 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:06:56] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:07:21,832 - werkzeug - INFO -  * Detected change in '/Users/arnissama/Desktop/gemini-alert-app/gemini-backend/app.py', reloading
+2025-07-15 20:07:21,898 - werkzeug - INFO -  * Restarting with stat
+2025-07-15 20:07:22,242 - __main__ - INFO - Gemini API key loaded (length: 39)
+2025-07-15 20:07:22,242 - __main__ - INFO - Gemini API configured successfully in development mode
+2025-07-15 20:07:22,297 - __main__ - ERROR - Error importing firebase_admin_init: [Errno 2] No such file or directory: '/Users/arnissama/Desktop/gemini-alert-app/serviceAccountKey.json'
+2025-07-15 20:07:22,297 - __main__ - WARNING - Running without Firebase integration.
+2025-07-15 20:07:22,317 - werkzeug - WARNING -  * Debugger is active!
+2025-07-15 20:07:22,328 - werkzeug - INFO -  * Debugger PIN: 615-583-652
+2025-07-15 20:07:26,456 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:07:26] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:07:56,452 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:07:56] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:08:02,129 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:08:02] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:08:02,140 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:08:02] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:08:02,147 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:08:02] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:08:02,150 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:08:02] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:08:02,153 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:08:02] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:08:02,156 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:08:02] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:08:02,157 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:08:02] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:08:04,374 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:08:04] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:08:06,465 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:08:06] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:08:06,474 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:08:06] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:08:06,521 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:08:06] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:08:36,425 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:08:36] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:09:01,666 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:09:01] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:09:06,420 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:09:06] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:09:36,420 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:09:36] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:10:02,250 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:10:02] "[35m[1mPOST /api/location HTTP/1.1[0m" 503 -
+2025-07-15 20:10:06,424 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:10:06] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 503 -
+2025-07-15 20:10:14,624 - werkzeug - INFO -  * Detected change in '/Users/arnissama/Desktop/gemini-alert-app/gemini-backend/app.py', reloading
+2025-07-15 20:10:14,681 - werkzeug - INFO -  * Restarting with stat
+2025-07-15 20:10:15,033 - __main__ - INFO - Gemini API key loaded (length: 39)
+2025-07-15 20:10:15,033 - __main__ - INFO - Gemini API configured successfully in development mode
+2025-07-15 20:10:15,081 - __main__ - ERROR - Error importing firebase_admin_init: [Errno 2] No such file or directory: '/Users/arnissama/Desktop/gemini-alert-app/serviceAccountKey.json'
+2025-07-15 20:10:15,081 - __main__ - WARNING - Running without Firebase integration.
+2025-07-15 20:10:15,099 - werkzeug - WARNING -  * Debugger is active!
+2025-07-15 20:10:15,105 - werkzeug - INFO -  * Debugger PIN: 615-583-652
+2025-07-15 20:10:25,118 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:10:25,121 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:10:25] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+2025-07-15 20:10:25,121 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:10:25,122 - __main__ - INFO - User mock-user-for-deployment location updated: lat=32.73200087182682, lng=-97.1127549651345
+2025-07-15 20:10:25,122 - __main__ - WARNING - Firebase Admin not initialised – skipping location write
+2025-07-15 20:10:25,123 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:10:25] "POST /api/location HTTP/1.1" 200 -
+2025-07-15 20:10:36,429 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:10:36,431 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:10:36] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+2025-07-15 20:10:55,101 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:10:55,103 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:10:55] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+2025-07-15 20:11:02,890 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:11:02,890 - __main__ - INFO - User mock-user-for-deployment location updated: lat=32.7319746044059, lng=-97.11278966531633
+2025-07-15 20:11:02,890 - __main__ - WARNING - Firebase Admin not initialised – skipping location write
+2025-07-15 20:11:02,891 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:11:02] "POST /api/location HTTP/1.1" 200 -
+2025-07-15 20:11:02,895 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:11:02,895 - __main__ - INFO - User mock-user-for-deployment location updated: lat=32.7319746044059, lng=-97.11278966531633
+2025-07-15 20:11:02,895 - __main__ - WARNING - Firebase Admin not initialised – skipping location write
+2025-07-15 20:11:02,896 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:11:02] "POST /api/location HTTP/1.1" 200 -
+2025-07-15 20:11:06,435 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:11:06,437 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:11:06] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+2025-07-15 20:11:25,104 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:11:25,106 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:11:25] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+2025-07-15 20:11:29,798 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:11:29,799 - __main__ - INFO - User mock-user-for-deployment location updated: lat=32.7319746044059, lng=-97.11278966531633
+2025-07-15 20:11:29,799 - __main__ - WARNING - Firebase Admin not initialised – skipping location write
+2025-07-15 20:11:29,800 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:11:29,800 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:11:29] "POST /api/location HTTP/1.1" 200 -
+2025-07-15 20:11:29,801 - __main__ - INFO - User mock-user-for-deployment location updated: lat=32.7319746044059, lng=-97.11278966531633
+2025-07-15 20:11:29,801 - __main__ - WARNING - Firebase Admin not initialised – skipping location write
+2025-07-15 20:11:29,801 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:11:29] "POST /api/location HTTP/1.1" 200 -
+2025-07-15 20:11:29,904 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:11:29,905 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:11:29] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+2025-07-15 20:11:59,767 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:11:59,769 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:11:59] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+2025-07-15 20:12:03,510 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:12:03,511 - __main__ - INFO - User mock-user-for-deployment location updated: lat=32.731977187903354, lng=-97.11278850823562
+2025-07-15 20:12:03,511 - __main__ - WARNING - Firebase Admin not initialised – skipping location write
+2025-07-15 20:12:03,512 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:12:03] "POST /api/location HTTP/1.1" 200 -
+2025-07-15 20:12:06,125 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:12:06,126 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:12:06] "OPTIONS /api/location HTTP/1.1" 200 -
+2025-07-15 20:12:06,127 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:12:06,127 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:12:06] "OPTIONS /api/location HTTP/1.1" 200 -
+2025-07-15 20:12:06,128 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:12:06,128 - __main__ - INFO - User mock-user-for-deployment location updated: lat=32.731977187903354, lng=-97.11278850823562
+2025-07-15 20:12:06,128 - __main__ - WARNING - Firebase Admin not initialised – skipping location write
+2025-07-15 20:12:06,128 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:12:06] "POST /api/location HTTP/1.1" 200 -
+2025-07-15 20:12:06,129 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:12:06,129 - __main__ - INFO - User mock-user-for-deployment location updated: lat=32.731977187903354, lng=-97.11278850823562
+2025-07-15 20:12:06,129 - __main__ - WARNING - Firebase Admin not initialised – skipping location write
+2025-07-15 20:12:06,129 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:12:06] "POST /api/location HTTP/1.1" 200 -
+2025-07-15 20:12:06,216 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:12:06,217 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:12:06] "OPTIONS /api/nearest-users HTTP/1.1" 200 -
+2025-07-15 20:12:06,218 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:12:06,219 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:12:06] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+2025-07-15 20:12:17,026 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:12:17,027 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:12:17] "OPTIONS /api/send-sos HTTP/1.1" 200 -
+2025-07-15 20:12:17,029 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:12:17,029 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:12:17] "[35m[1mPOST /api/send-sos HTTP/1.1[0m" 500 -
+2025-07-15 20:12:24,036 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:12:24,044 - __main__ - INFO - User mock-user-for-deployment location updated: lat=32.731977187903354, lng=-97.11278850823562
+2025-07-15 20:12:24,044 - __main__ - WARNING - Firebase Admin not initialised – skipping location write
+2025-07-15 20:12:24,044 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:12:24] "POST /api/location HTTP/1.1" 200 -
+2025-07-15 20:12:24,064 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:12:24,065 - __main__ - INFO - User mock-user-for-deployment location updated: lat=32.731977187903354, lng=-97.11278850823562
+2025-07-15 20:12:24,065 - __main__ - WARNING - Firebase Admin not initialised – skipping location write
+2025-07-15 20:12:24,065 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:12:24] "POST /api/location HTTP/1.1" 200 -
+2025-07-15 20:12:24,178 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:12:24,178 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:12:24] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
+2025-07-15 20:12:36,117 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:12:36,119 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:12:36] "OPTIONS /api/nearest-users HTTP/1.1" 200 -
+2025-07-15 20:12:36,120 - __main__ - WARNING - Firebase Admin SDK not initialized. Using mock user for request.
+2025-07-15 20:12:36,121 - werkzeug - INFO - 127.0.0.1 - - [15/Jul/2025 20:12:36] "[35m[1mPOST /api/nearest-users HTTP/1.1[0m" 500 -
 /Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/multiprocessing/resource_tracker.py:254: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown
   warnings.warn('resource_tracker: There appear to be %d '

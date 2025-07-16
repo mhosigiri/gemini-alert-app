@@ -616,6 +616,10 @@ export default {
       }
     }
     // Lifecycle hooks
+    let userInterval = null
+    let alertInterval = null
+    let privacyUpdateListener = null
+
     onMounted(() => {
       // Check if user is logged in
       onAuthStateChanged(auth, (currentUser) => {
@@ -624,15 +628,19 @@ export default {
           router.push('/login')
           return
         }
+        
         // Start location tracking
         startTracking()
+        
         // Initialize map
         if (mapElement.value) {
           initializeMap()
         }
+        
         // Set up refresh intervals
-        const userInterval = setInterval(refreshNearbyUsers, 30000) // Every 30 seconds
-        const alertInterval = setInterval(refreshNearbyAlerts, 15000) // Every 15 seconds
+        userInterval = setInterval(refreshNearbyUsers, 30000) // Every 30 seconds
+        alertInterval = setInterval(refreshNearbyAlerts, 15000) // Every 15 seconds
+        
         // Listen for privacy settings changes
         const handlePrivacyUpdate = (event) => {
           const { detail } = event
@@ -645,17 +653,20 @@ export default {
             }
           }
         }
+        
         window.addEventListener('privacy-settings-updated', handlePrivacyUpdate)
-        // Clean up intervals on component unmount
-        onBeforeUnmount(() => {
-          clearInterval(userInterval)
-          clearInterval(alertInterval)
-          window.removeEventListener('privacy-settings-updated', handlePrivacyUpdate)
-        })
-        // Initialize speech recognition
-        initSpeechRecognition()
+        privacyUpdateListener = handlePrivacyUpdate
       })
     })
+
+    onBeforeUnmount(() => {
+      if (userInterval) clearInterval(userInterval)
+      if (alertInterval) clearInterval(alertInterval)
+      if (privacyUpdateListener) {
+        window.removeEventListener('privacy-settings-updated', privacyUpdateListener)
+      }
+    })
+
     return {
       user,
       mapElement,
