@@ -3,7 +3,7 @@
     "rules": "firebase-rules.json"
   },
   "firestore": {
-    "rules": "firestore-rules.json"
+    "rules": "firestore.rules"
   },
   "hosting": {
     "public": "gemini-frontend/dist",

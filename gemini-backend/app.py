@@ -8,9 +8,17 @@ from functools import wraps
 import google.generativeai as genai
 from google.generativeai import types
 import time
+import logging
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO if os.environ.get("FLASK_ENV") == "production" else logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Determine environment
 ENV = os.environ.get("FLASK_ENV", "development")
@@ -37,24 +45,9 @@ GEMINI_AVAILABLE = False
 
 # Log API key status (without exposing the key)
 if GEMINI_API_KEY:
-    print(f"Gemini API key loaded (length: {len(GEMINI_API_KEY)})")
+    logger.info(f"Gemini API key loaded (length: {len(GEMINI_API_KEY)})")
 else:
-    print("WARNING: No Gemini API key found in environment variables")
-
-# More realistic emergency response when API isn't available
-MOCK_GEMINI_RESPONSE = """
-Based on your emergency situation, here are the recommended actions:
-
-1. Remain calm and assess your surroundings for immediate dangers.
-2. For life-threatening emergencies, call 911 (or your local emergency number) immediately.
-3. If you're experiencing a medical emergency, apply basic first aid if safe to do so.
-4. For evacuation scenarios, follow official guidance and use designated routes.
-5. Stay informed through local emergency broadcasts or official alert systems.
-6. If safe, help others who may need assistance.
-
-Remember: This is an automated emergency response system. No internet connection is 
-currently available to provide location-specific guidance.
-"""
+    logger.warning("No Gemini API key found in environment variables")
 
 # Health expert system prompt
 HEALTH_EXPERT_PROMPT = """
@@ -72,11 +65,10 @@ try:
     # Initialize the Gemini client
     genai.configure(api_key=GEMINI_API_KEY)
     GEMINI_AVAILABLE = True
-    print(f"Gemini API configured successfully in {ENV} mode")
+    logger.info(f"Gemini API configured successfully in {ENV} mode")
 except Exception as e:
-    print(f"Failed to initialize Gemini client: {e}")
+    logger.error(f"Failed to initialize Gemini client: {e}")
     GEMINI_AVAILABLE = False
-    print("Using mock responses")
 
 # Skip Firebase in development mode
 firebase_admin_init = None
@@ -86,25 +78,18 @@ try:
     import firebase_admin_init
     db = firebase_admin_init.db
     rtdb = firebase_admin_init.rtdb
-    print("Firebase Admin SDK initialized successfully.")
+    logger.info("Firebase Admin SDK initialized successfully.")
 except Exception as e:
-    print(f"Error importing firebase_admin_init: {e}")
-    print("Running without Firebase integration.")
+    logger.error(f"Error importing firebase_admin_init: {e}")
+    logger.warning("Running without Firebase integration.")
 
 # Authentication middleware
 def auth_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # For development, disable authentication requirement
-        if DEBUG:
-            # Add mock user to request
-            request.user = {"uid": "mock-user-id"}
-            return f(*args, **kwargs)
-            
+        # Always require authentication
         if firebase_admin_init is None:
-            # If Firebase is not available, use mock authentication
-            request.user = {"uid": "mock-user-id"}
-            return f(*args, **kwargs)
+            return jsonify({"error": "Firebase authentication not available"}), 503
             
         auth_header = request.headers.get('Authorization')
         
@@ -140,9 +125,9 @@ def ask_gemini():
     if not user_input:
         return jsonify({"error": "No question provided"}), 400
 
-    # Only check if Gemini is available, not if we're in debug mode
+    # Only check if Gemini is available
     if not GEMINI_AVAILABLE:
-        return jsonify({"response": MOCK_GEMINI_RESPONSE})
+        return jsonify({"error": "Gemini API is not available. Please check your API key configuration."}), 503
     
     try:
         # Configure the model
@@ -187,13 +172,13 @@ def ask_gemini():
     except Exception as e:
         # Log the error and provide a fallback response
         error_details = str(e)
-        print(f"Gemini API error: {error_details}")
+        logger.error(f"Gemini API error: {error_details}")
         
         # Check if this is an API key error
         if "API key" in error_details.lower():
-            return jsonify({"response": f"Invalid or expired API key. Please check your Gemini API key.\n\n{MOCK_GEMINI_RESPONSE}"}), 200
+            return jsonify({"response": f"Invalid or expired API key. Please check your Gemini API key."}), 200
         else:
-            return jsonify({"response": f"I encountered an error when processing your question: {error_details}\n\n{MOCK_GEMINI_RESPONSE}"}), 200
+            return jsonify({"response": f"I encountered an error when processing your question: {error_details}"}), 200
 
 @app.route('/ask-stream', methods=['POST', 'OPTIONS'])
 @auth_required
@@ -212,12 +197,11 @@ def ask_gemini_stream():
     if not user_input:
         return jsonify({"error": "No question provided"}), 400
 
-    # Only check if Gemini is available, not if we're in debug mode
+    # Only check if Gemini is available
     if not GEMINI_AVAILABLE:
         def generate_mock():
-            # Split the mock response by lines and send each line as a chunk
-            for line in MOCK_GEMINI_RESPONSE.split('\n'):
-                yield f"data: {line}\n\n"
+            # Return error message instead of mock response
+            yield f"data: Gemini API is not available. Please check your API key configuration.\n\n"
                 
         return Response(stream_with_context(generate_mock()), 
                        content_type='text/event-stream')
@@ -271,16 +255,13 @@ def ask_gemini_stream():
     except Exception as e:
         # Log the error and provide a fallback response
         error_details = str(e)
-        print(f"Gemini API error in streaming: {error_details}")
+        logger.error(f"Gemini API error in streaming: {error_details}")
         
         def generate_error():
             if "API key" in error_details.lower():
                 yield f"data: Invalid or expired API key. Please check your Gemini API key.\n\n"
             else:
                 yield f"data: I encountered an error when processing your question: {error_details}\n\n"
-            
-            for line in MOCK_GEMINI_RESPONSE.split('\n'):
-                yield f"data: {line}\n\n"
                 
         return Response(stream_with_context(generate_error()), 
                        content_type='text/event-stream')
@@ -291,25 +272,13 @@ def get_user_profile():
     user_id = request.user['uid']
     
     # Get user data from Firebase
-    if DEBUG or firebase_admin_init is None:
-        # Use mock data in development mode
-        user_data = {
-            "displayName": "Demo User",
-            "email": "demo@example.com",
-            "location": {"latitude": 37.7749, "longitude": -122.4194},
-            "createdAt": "2024-03-29T00:00:00Z"
-        }
-    else:
-        user_data = firebase_admin_init.get_user_data(user_id)
+    if firebase_admin_init is None:
+        return jsonify({"error": "Firebase not initialized"}), 503
         
-        if not user_data:
-            # Fall back to mock data
-            user_data = {
-                "displayName": "Demo User",
-                "email": "demo@example.com",
-                "location": {"latitude": 37.7749, "longitude": -122.4194},
-                "createdAt": "2024-03-29T00:00:00Z"
-            }
+    user_data = firebase_admin_init.get_user_data(user_id)
+    
+    if not user_data:
+        return jsonify({"error": "User profile not found"}), 404
     
     return jsonify({"profile": user_data})
 
@@ -332,7 +301,7 @@ def update_location():
     # In production, this would update the user's location in Firebase
     # For now, we'll just acknowledge the update
     if DEBUG:
-        print(f"User {user_id} location updated: lat={latitude}, lng={longitude}")
+        logger.info(f"User {user_id} location updated: lat={latitude}, lng={longitude}")
     
     return jsonify({
         "status": "success",
