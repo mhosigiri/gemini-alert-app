@@ -281,8 +281,19 @@ export const showAlerts = async (alerts) => {
     if (!googleMapsApi) {
       googleMapsApi = await getGoogleMapsApi();
     }
-    // Add marker for each alert
-    alerts.forEach(alert => {
+    
+    // Get current time
+    const now = Date.now();
+    const threeHoursInMs = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
+    
+    // Filter out expired alerts and add markers for active ones
+    const activeAlerts = alerts.filter(alert => {
+      const alertAge = now - (alert.createdAt instanceof Date ? alert.createdAt.getTime() : alert.createdAt);
+      return alertAge < threeHoursInMs;
+    });
+    
+    // Add marker for each active alert
+    activeAlerts.forEach(alert => {
       try {
         const { id, location, userName, message, emergencyType, createdAt } = alert;
         if (!location || !location.latitude || !location.longitude) return;
@@ -331,10 +342,12 @@ export const showAlerts = async (alerts) => {
         });
         markers.push(marker);
       } catch (markerError) {
+        console.error('Error adding alert marker:', markerError);
       }
     });
-    return markers.length;
+    return activeAlerts.length;
   } catch (error) {
+    console.error('Error showing alerts:', error);
     return 0; // Continue without throwing
   }
 };

@@ -133,9 +133,18 @@ export const getNearbyAlerts = async (radius = 10) => {
           resolve([]);
           return;
         }
+        
+        // Get current time
+        const now = Date.now();
+        const threeHoursInMs = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
+        
         // Filter and format alerts
         const nearbyAlerts = Object.entries(alerts)
-          .filter(([, data]) => data.status === 'active')
+          .filter(([, data]) => {
+            // Filter out alerts older than 3 hours
+            const alertAge = now - data.createdAt;
+            return data.status === 'active' && alertAge < threeHoursInMs;
+          })
           .map(([alertId, data]) => {
             const distance = calculateDistance(
               currentLat,
