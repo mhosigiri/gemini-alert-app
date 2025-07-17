@@ -384,6 +384,7 @@ def send_sos():
     latitude = data.get('latitude')
     longitude = data.get('longitude')
     message = data.get('message', '')
+    emergency_type = data.get('emergencyType', 'general')
     
     if latitude is None or longitude is None:
         return jsonify({"error": "Latitude and longitude are required"}), 400
@@ -420,6 +421,9 @@ def send_sos():
     # 1. Store the SOS alert in Firebase
     # 2. Send push notifications to nearby users
     # 3. Update real-time database for live tracking
+    
+    # Log the SOS alert for debugging
+    logger.info(f"SOS Alert sent - User: {user_id}, Location: ({latitude}, {longitude}), Type: {emergency_type}, Recipients: {len(recipients)}")
     
     return jsonify({
         "status": "sos_sent",

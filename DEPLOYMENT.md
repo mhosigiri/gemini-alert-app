@@ -1,35 +1,40 @@
-# Gemini Alert App - Deployment Guide
+# Deployment Instructions
+
+This application consists of two parts: a Vue.js frontend and a Flask backend, both deployed on Vercel.
 
 ## Prerequisites
 
-1. **Firebase Project**
-   - Create a Firebase project at [Firebase Console](https://console.firebase.google.com)
-   - Enable Authentication (Email/Password)
-   - Enable Firestore Database
-   - Enable Realtime Database
-   - Download `serviceAccountKey.json` and place it in the project root
+1. Vercel account
+2. Firebase project with credentials
+3. Google Maps API key
+4. Gemini API key (for AI features)
 
-2. **Google Cloud**
-   - Enable Google Maps JavaScript API
-   - Enable Gemini API
-   - Get your API keys
+## Environment Variables
 
-3. **Node.js & Python**
-   - Node.js 16+ and npm
-   - Python 3.8+
+### Backend (Vercel)
 
-## Environment Setup
+The following environment variables MUST be set in your Vercel project settings for the backend:
 
-### Backend (.env in `gemini-backend/`)
 ```bash
+# Gemini AI Configuration
 GEMINI_API_KEY=your_gemini_api_key_here
-FIREBASE_DATABASE_URL=https://your-project.firebaseio.com
+
+# Flask Configuration
 FLASK_ENV=production
-FLASK_DEBUG=0
-PORT=5001
+
+# Firebase Admin SDK (base64 encoded)
+FIREBASE_ADMIN_CREDENTIALS=base64_encoded_service_account_json
 ```
 
-### Frontend (.env in `gemini-frontend/`)
+**Important**: In Vercel, environment variables are NOT automatically loaded from `.env` files in production. You must add them through the Vercel dashboard:
+
+1. Go to your Vercel project settings
+2. Navigate to "Environment Variables"
+3. Add each variable with its value
+4. Make sure to select "Production" environment
+
+### Frontend (Vercel)
+
 ```bash
 VUE_APP_API_BASE_URL=https://your-backend-url.com
 VUE_APP_FIREBASE_CONFIG_API_KEY=your_firebase_api_key
