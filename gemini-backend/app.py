@@ -83,12 +83,12 @@ except Exception as e:
 firebase_admin_init = None
 db = None
 rtdb = None
-try:
-    import firebase_admin_init
+    try:
+        import firebase_admin_init
     db = firebase_admin_init.db
     rtdb = firebase_admin_init.rtdb
     logger.info("Firebase Admin SDK initialized successfully.")
-except Exception as e:
+    except Exception as e:
     logger.error(f"Error importing firebase_admin_init: {e}")
     logger.warning("Running without Firebase integration.")
 
@@ -286,9 +286,9 @@ def get_user_profile():
     if firebase_admin_init is None:
         return jsonify({"error": "Firebase not initialized"}), 503
         
-    user_data = firebase_admin_init.get_user_data(user_id)
-    
-    if not user_data:
+        user_data = firebase_admin_init.get_user_data(user_id)
+        
+        if not user_data:
         return jsonify({"error": "User profile not found"}), 404
     
     return jsonify({"profile": user_data})

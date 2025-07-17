@@ -387,8 +387,8 @@ export default {
         }
       } catch (error) {
         nearbyUsers.value = []
+        }
       }
-    }
     const refreshNearbyAlerts = async () => {
       try {
         // Get alerts within 10km
@@ -400,8 +400,8 @@ export default {
         }
       } catch (error) {
         nearbyAlerts.value = []
+        }
       }
-    }
     const sendAlert = async () => {
       if (!canSendAlert.value) return
       isLoading.value = true
@@ -659,7 +659,7 @@ export default {
       })
     })
 
-    onBeforeUnmount(() => {
+        onBeforeUnmount(() => {
       if (userInterval) clearInterval(userInterval)
       if (alertInterval) clearInterval(alertInterval)
       if (privacyUpdateListener) {

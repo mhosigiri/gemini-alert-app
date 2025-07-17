@@ -89,7 +89,7 @@ fi
 
 # Activate virtual environment
 echo -e "${GREEN}Activating virtual environment...${NC}"
-source venv/bin/activate
+  source venv/bin/activate
 
 # Check if dependencies are installed
 if [ ! -f "venv/lib/python3.*/site-packages/flask/__init__.py" ]; then

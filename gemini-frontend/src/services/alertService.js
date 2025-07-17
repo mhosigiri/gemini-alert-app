@@ -157,6 +157,10 @@ export const getNearbyAlerts = async (radius = 10) => {
             };
           })
           .filter(alert => alert.distance <= radius)
+          .filter(alert => {
+            const THIRTY_MIN = 30 * 60 * 1000;
+            return Date.now() - alert.createdAt.getTime() <= THIRTY_MIN;
+          })
           .sort((a, b) => a.distance - b.distance);
         resolve(nearbyAlerts);
       }, (error) => {

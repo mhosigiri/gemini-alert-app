@@ -68,7 +68,7 @@ const updateUserLocation = async (position) => {
   const userId = auth.currentUser.uid;
   try {
     // Update backend first
-    try {
+  try {
       await api.post('/api/location', {
         userId,
         latitude,
@@ -203,54 +203,54 @@ export const findNearbyUsers = async (radius = 5) => { // radius in kilometers
     const currentLng = position.coords.longitude;
     // Get all user locations from Realtime Database
     return new Promise((resolve) => {
-      const locationsRef = ref(rtdb, 'locations');
-      onValue(locationsRef, (snapshot) => {
-        try {
-          const locations = snapshot.val();
-          if (!locations) {
+        const locationsRef = ref(rtdb, 'locations');
+          onValue(locationsRef, (snapshot) => {
+            try {
+              const locations = snapshot.val();
+              if (!locations) {
             resolve([]);
-            return;
-          }
-          // Calculate distance for each user and filter by radius
-          const nearbyUsers = Object.entries(locations)
-            .filter(([uid]) => uid !== auth.currentUser.uid) // Exclude current user
-            .map(([uid, data]) => {
-              try {
-                // Try both naming conventions (latitude/longitude and lat/lng)
-                const userLat = data.latitude || data.lat;
-                const userLng = data.longitude || data.lng;
-                // Ensure latitude and longitude exist
-                if (!userLat || !userLng) {
-                  return null;
-                }
-                const distance = calculateDistance(
-                  currentLat,
-                  currentLng, 
-                  userLat, 
-                  userLng
-                );
-                return {
-                  uid,
-                  displayName: data.displayName || 'Helper',
-                  email: data.email,
-                  distance, // in km
-                  latitude: userLat,
-                  longitude: userLng,
-                  lastUpdated: new Date(data.timestamp || Date.now())
-                };
-              } catch (err) {
-                return null;
+                return;
               }
-            })
-            .filter(user => user !== null && user.distance <= radius)
-            .sort((a, b) => a.distance - b.distance);
-          resolve(nearbyUsers);
-        } catch (parseError) {
+              // Calculate distance for each user and filter by radius
+              const nearbyUsers = Object.entries(locations)
+                .filter(([uid]) => uid !== auth.currentUser.uid) // Exclude current user
+                .map(([uid, data]) => {
+                  try {
+                    // Try both naming conventions (latitude/longitude and lat/lng)
+                    const userLat = data.latitude || data.lat;
+                    const userLng = data.longitude || data.lng;
+                    // Ensure latitude and longitude exist
+                    if (!userLat || !userLng) {
+                      return null;
+                    }
+                    const distance = calculateDistance(
+                      currentLat,
+                      currentLng, 
+                      userLat, 
+                      userLng
+                    );
+                    return {
+                      uid,
+                      displayName: data.displayName || 'Helper',
+                      email: data.email,
+                      distance, // in km
+                      latitude: userLat,
+                      longitude: userLng,
+                      lastUpdated: new Date(data.timestamp || Date.now())
+                    };
+                  } catch (err) {
+                    return null;
+                  }
+                })
+                .filter(user => user !== null && user.distance <= radius)
+                .sort((a, b) => a.distance - b.distance);
+                resolve(nearbyUsers);
+            } catch (parseError) {
           resolve([]);
-        }
-      }, (error) => {
+            }
+          }, (error) => {
         resolve([]);
-      });
+          });
     });
   } catch (error) {
     return [];
