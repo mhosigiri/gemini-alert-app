@@ -83,3 +83,12 @@ export const askGeminiStream = async (question, onChunkReceived) => {
     onChunkReceived(`Sorry, there was an error connecting to the Gemini API. Please try again later.`);
   }
 }
+
+export const getChatHistory = async () => {
+  try {
+    const response = await api.get('/chats');
+    return response.data.history;
+  } catch (error) {
+    throw error;
+  }
+};

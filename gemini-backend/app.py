@@ -9,6 +9,7 @@ import google.generativeai as genai
 from google.generativeai import types
 import time
 import logging
+import threading
 
 # Helper function for distance calculation
 def haversine(lat1, lon1, lat2, lon2):
@@ -49,7 +50,7 @@ CORS(
 
 # Configure Gemini API
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL = "gemini-2.5-pro-exp-03-25"
+GEMINI_MODEL = "gemini-1.5-pro-latest"
 GEMINI_AVAILABLE = False
 
 # Log API key status (without exposing the key)
@@ -128,6 +129,7 @@ def ask_gemini():
         return response
         
     data = request.json
+    user_id = request.user['uid']
     user_input = data.get("question", "")
     
     # Prepend the health expert prompt to the user's question
@@ -179,6 +181,15 @@ def ask_gemini():
             safety_settings=safety_settings
         )
         
+        # Store the conversation in Firebase
+        if rtdb:
+            chat_ref = rtdb.child('chats').child(user_id).push()
+            chat_ref.set({
+                'question': user_input,
+                'response': response.text,
+                'timestamp': int(time.time())
+            })
+            
         return jsonify({"response": response.text})
     except Exception as e:
         # Log the error and provide a fallback response
@@ -432,9 +443,80 @@ def send_sos():
         "message": "SOS alert sent to nearby users"
     })
 
+@app.route('/chats', methods=['GET'])
+@auth_required
+def get_chats():
+    if not rtdb:
+        return jsonify({"error": "Firebase Realtime Database not configured"}), 500
+
+    user_id = request.user['uid']
+    
+    try:
+        chats_ref = rtdb.child('chats').child(user_id)
+        chats = chats_ref.get()
+        
+        if not chats:
+            return jsonify({"history": []})
+
+        # Format the chat history
+        history = []
+        for chat_id, chat_data in chats.items():
+            history.append({
+                'sender': 'user',
+                'text': chat_data.get('question')
+            })
+            history.append({
+                'sender': 'ai',
+                'text': chat_data.get('response')
+            })
+            
+        # Sort by timestamp
+        history.sort(key=lambda x: x.get('timestamp', 0))
+
+        return jsonify({"history": history})
+    except Exception as e:
+        logger.error(f"Error fetching chat history: {e}")
+        return jsonify({"error": "An error occurred while fetching chat history"}), 500
+
+@app.route('/api/cleanup-chats', methods=['POST'])
+def cleanup_chats():
+    if not rtdb:
+        return jsonify({"error": "Firebase Realtime Database not configured"}), 500
+
+    try:
+        thirty_minutes_ago = int(time.time()) - (30 * 60)
+        chats_ref = rtdb.child('chats')
+        all_user_chats = chats_ref.get()
+
+        if not all_user_chats:
+            return jsonify({"status": "no chats to cleanup"}), 200
+
+        for user_id, chats in all_user_chats.items():
+            for chat_id, chat_data in chats.items():
+                if chat_data.get('timestamp', 0) < thirty_minutes_ago:
+                    rtdb.child('chats').child(user_id).child(chat_id).delete()
+        
+        return jsonify({"status": "cleanup successful"}), 200
+    except Exception as e:
+        logger.error(f"Error during chat cleanup: {e}")
+        return jsonify({"error": "An error occurred during cleanup"}), 500
+
+def run_chat_cleanup_scheduler():
+    while True:
+        time.sleep(30 * 60) # Sleep for 30 minutes
+        try:
+            with app.app_context():
+                cleanup_chats()
+            logger.info("Chat cleanup task completed.")
+        except Exception as e:
+            logger.error(f"Error in chat cleanup scheduler: {e}")
+
 @app.after_request
 def add_cors_headers(response):
     return response
 
 if __name__ == '__main__':
+    # Start the chat cleanup scheduler in a background thread
+    cleanup_thread = threading.Thread(target=run_chat_cleanup_scheduler, daemon=True)
+    cleanup_thread.start()
     app.run(debug=DEBUG, host='0.0.0.0', port=PORT)

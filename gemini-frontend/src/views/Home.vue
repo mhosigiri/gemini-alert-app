@@ -243,7 +243,7 @@ import {
   showAlerts,
   cleanupMap
 } from '../services/mapService'
-import { askGemini, askGeminiStream } from '../services/geminiService'
+import { askGemini, askGeminiStream, getChatHistory } from '../services/geminiService'
 import PrivacySettings from '../components/PrivacySettings.vue'
 export default {
   name: 'HomePage',
@@ -644,7 +644,15 @@ export default {
     let alertInterval = null
     let privacyUpdateListener = null
 
-    onMounted(() => {
+    onMounted(async () => {
+      // Fetch initial chat history
+      try {
+        const history = await getChatHistory()
+        chatHistory.value = history
+      } catch (error) {
+        console.error("Failed to load chat history:", error)
+      }
+
       // Check if user is logged in
       onAuthStateChanged(auth, (currentUser) => {
         user.value = currentUser
