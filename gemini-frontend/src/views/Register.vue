@@ -31,6 +31,7 @@
 <script>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { auth } from '../firebase'
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
 import { ensureUserInDatabase } from '../services/userService'
 export default {
