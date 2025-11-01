@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "gemini-backend/app.py",
+      "src": "api/index.py",
       "use": "@vercel/python",
       "config": {
         "runtime": "python3.12"
@@ -12,7 +12,7 @@
       "src": "gemini-frontend/package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "dist",
+        "distDir": "gemini-frontend/dist",
         "buildCommand": "cd gemini-frontend && npm install && npm run build"
       }
     }
@@ -20,11 +20,11 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "gemini-backend/app.py"
+      "dest": "/api/index.py"
     },
     {
       "src": "/(.*)",
-      "dest": "gemini-frontend/dist/$1"
+      "dest": "/gemini-frontend/dist/$1"
     }
   ],
   "github": {
