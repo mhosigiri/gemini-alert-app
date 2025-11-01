@@ -5,6 +5,12 @@ import { rtdb, auth } from '../firebase';
 let googleMapsApi = null;
 // Google Maps API key from environment
 const MAPS_API_KEY = process.env.VUE_APP_GOOGLE_MAPS_API_KEY || '';
+const MAP_ID = process.env.VUE_APP_GOOGLE_MAPS_MAP_ID || '';
+
+// Validate API key
+if (!MAPS_API_KEY) {
+  console.warn('⚠️  Google Maps API key is not set. Set VUE_APP_GOOGLE_MAPS_API_KEY in your .env file.');
+}
 // Map instance
 let map = null;
 let markers = [];
@@ -14,16 +20,50 @@ let userListeners = [];
 // Track if map has been initialized
 let mapInitialized = false;
 let loaderPromise = null;
+let myLocationControlAdded = false;
 // Initialize Google Maps API loader (singleton)
 const getGoogleMapsApi = async () => {
+  if (!MAPS_API_KEY) {
+    throw new Error('Google Maps API key is not configured. Please set VUE_APP_GOOGLE_MAPS_API_KEY in your environment variables.');
+  }
+  
   if (!loaderPromise) {
-    const loader = new Loader({
+    const loaderConfig = {
       apiKey: MAPS_API_KEY,
       version: 'beta',  // Use beta for advanced markers
       libraries: ['maps', 'places', 'marker'],
-      callback: 'console.debug'  // Required callback, using console.debug as noop
+      // Use loading strategy for better performance
+      loadingStrategy: 'async',
+    };
+    if (MAP_ID) {
+      loaderConfig.mapIds = [MAP_ID];
+    }
+    const loader = new Loader(loaderConfig);
+    loaderPromise = loader.load().catch(error => {
+      console.error('Google Maps API Load Error:', error);
+      
+      // Check for API key restriction errors
+      if (error.message && (error.message.includes('ApiTargetBlockedMapError') || error.message.includes('RefererNotAllowedMapError'))) {
+        const errorMsg = '🚫 Google Maps API key is restricted!\n\n' +
+          'To fix this:\n' +
+          '1. Go to: https://console.cloud.google.com/apis/credentials\n' +
+          '2. Click on your API key\n' +
+          '3. Under "Application restrictions", select "HTTP referrers (web sites)"\n' +
+          '4. Add these referrers:\n' +
+          '   • http://localhost:8080/*\n' +
+          '   • http://localhost:*/*\n' +
+          '   • http://127.0.0.1:8080/*\n' +
+          '5. Click "Save" and wait 1-5 minutes\n\n' +
+          'Alternatively, temporarily set restrictions to "None" for testing.';
+        console.error(errorMsg);
+        alert(errorMsg); // Show alert so user sees it
+        throw new Error(errorMsg);
+      }
+      
+      // Reset promise on error so we can retry
+      loaderPromise = null;
+      throw error;
     });
-    loaderPromise = loader.load();
   }
   return loaderPromise;
 };
@@ -33,13 +73,33 @@ export const initMap = async (elementId, options = {}) => {
     return map;
   }
   try {
+    // Wait for the element to be available in the DOM
+    let mapElement = document.getElementById(elementId);
+    let retries = 5;
+    while (!mapElement && retries > 0) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+      mapElement = document.getElementById(elementId);
+      retries--;
+    }
+    
+    if (!mapElement) {
+      throw new Error(`Element with ID "${elementId}" not found after multiple retries. Make sure the element exists in the DOM.`);
+    }
+    
+    // Ensure element is visible and has dimensions
+    if (mapElement.offsetWidth === 0 || mapElement.offsetHeight === 0) {
+      console.warn('Map element has zero dimensions. Waiting for layout...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
     // Get Google Maps API
     googleMapsApi = await getGoogleMapsApi();
-    // Check if element exists
-    const mapElement = document.getElementById(elementId);
-    if (!mapElement) {
-      throw new Error(`Element with ID "${elementId}" not found`);
+    
+    // Verify API loaded correctly
+    if (!googleMapsApi || !googleMapsApi.maps) {
+      throw new Error('Google Maps API did not load correctly');
     }
+    
     const defaultOptions = {
       center: { lat: 0, lng: 0 }, // Default center (will be updated)
       zoom: 15,
@@ -47,23 +107,80 @@ export const initMap = async (elementId, options = {}) => {
       streetViewControl: false,
       fullscreenControl: true,
       mapTypeId: googleMapsApi.maps.MapTypeId.ROADMAP,
-      mapId: 'DEMO_MAP_ID', // Use the map ID from the boilerplate
-      // Improved style settings
+      ...(MAP_ID ? { mapId: MAP_ID } : {}),
       zoomControl: true,
       gestureHandling: 'greedy' // Makes it easier to use on mobile
     };
     const mapOptions = { ...defaultOptions, ...options };
+    
     // Create map
     map = new googleMapsApi.maps.Map(mapElement, mapOptions);
+    addMyLocationControl();
     mapInitialized = true;
     return map;
   } catch (error) {
     mapInitialized = false;
+    console.error('Map initialization error:', error);
+    
+    // Show user-friendly error message
+    if (error.message && error.message.includes('restricted')) {
+      // Error already shown in getGoogleMapsApi
+    } else {
+      console.error('Failed to initialize map:', error.message);
+    }
+    
     throw error;
   }
 };
 // Default location (used when geolocation is not available)
 const DEFAULT_LOCATION = { lat: 37.7749, lng: -122.4194 }; // San Francisco
+
+const addMyLocationControl = () => {
+  if (!googleMapsApi || !map || myLocationControlAdded) {
+    return;
+  }
+
+  const controlDiv = document.createElement('div');
+  controlDiv.style.margin = '16px';
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.setAttribute('aria-label', 'Center map on your location');
+  button.textContent = '📍';
+  button.style.backgroundColor = '#fff';
+  button.style.border = 'none';
+  button.style.borderRadius = '50%';
+  button.style.boxShadow = '0 1px 4px rgba(0,0,0,0.3)';
+  button.style.width = '44px';
+  button.style.height = '44px';
+  button.style.fontSize = '20px';
+  button.style.display = 'flex';
+  button.style.alignItems = 'center';
+  button.style.justifyContent = 'center';
+  button.style.color = '#1a73e8';
+  button.style.cursor = 'pointer';
+  button.style.outline = 'none';
+
+  const setLoading = (state) => {
+    button.disabled = state;
+    button.style.opacity = state ? '0.6' : '1';
+  };
+
+  button.addEventListener('click', async () => {
+    setLoading(true);
+    try {
+      await centerMapOnUserLocation();
+    } catch (error) {
+      console.error('Failed to center on user location:', error);
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  controlDiv.appendChild(button);
+  map.controls[googleMapsApi.maps.ControlPosition.RIGHT_BOTTOM].push(controlDiv);
+  myLocationControlAdded = true;
+};
 // Center map on user's current location
 export const centerMapOnUserLocation = async (radiusInKm = 1) => {
   if (!mapInitialized || !map) {
@@ -410,6 +527,7 @@ export const cleanupMap = () => {
     // Reset map state
     map = null;
     mapInitialized = false;
+    myLocationControlAdded = false;
   } catch (error) {
   }
 }; 

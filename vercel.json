@@ -1,0 +1,52 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "gemini-backend/app.py",
+      "use": "@vercel/python",
+      "config": {
+        "runtime": "python3.11"
+      }
+    },
+    {
+      "src": "gemini-frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist",
+        "buildCommand": "npm run build:vercel"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "gemini-backend/app.py"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "gemini-frontend/dist/$1"
+    }
+  ],
+  "env": {
+    "GEMINI_API_KEY": "@gemini_api_key",
+    "FIREBASE_SERVICE_ACCOUNT_KEY": "@firebase_service_account_key",
+    "FIREBASE_DATABASE_URL": "@firebase_database_url",
+    "VUE_APP_API_BASE_URL": "@vue_app_api_base_url",
+    "VUE_APP_FIREBASE_API_KEY": "@vue_app_firebase_api_key",
+    "VUE_APP_FIREBASE_AUTH_DOMAIN": "@vue_app_firebase_auth_domain",
+    "VUE_APP_FIREBASE_PROJECT_ID": "@vue_app_firebase_project_id",
+    "VUE_APP_FIREBASE_STORAGE_BUCKET": "@vue_app_firebase_storage_bucket",
+    "VUE_APP_FIREBASE_MESSAGING_SENDER_ID": "@vue_app_firebase_messaging_sender_id",
+    "VUE_APP_FIREBASE_APP_ID": "@vue_app_firebase_app_id",
+    "VUE_APP_FIREBASE_MEASUREMENT_ID": "@vue_app_firebase_measurement_id",
+    "VUE_APP_GOOGLE_MAPS_API_KEY": "@vue_app_google_maps_api_key",
+    "VUE_APP_GOOGLE_MAPS_MAP_ID": "@vue_app_google_maps_map_id"
+  },
+  "github": {
+    "silent": false
+  }
+}
+

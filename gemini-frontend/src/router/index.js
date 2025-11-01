@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { auth } from '../firebase'
+import { onAuthStateChanged } from 'firebase/auth'
 import Home from '../views/Home.vue'
 import Login from '../views/Login.vue'
 import Register from '../views/Register.vue'
@@ -30,8 +31,33 @@ const router = createRouter({
   history: createWebHistory('/'),
   routes
 })
+let authInitialized = false
+const waitForAuthInit = () => {
+  if (authInitialized) {
+    return Promise.resolve(auth.currentUser)
+  }
+  return new Promise((resolve) => {
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      (user) => {
+        authInitialized = true
+        unsubscribe()
+        resolve(user)
+      },
+      () => {
+        authInitialized = true
+        unsubscribe()
+        resolve(null)
+      }
+    )
+  })
+}
+
 // Navigation guards
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
+  if (!authInitialized) {
+    await waitForAuthInit()
+  }
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
   const isAuthenticated = auth.currentUser
   if (requiresAuth && !isAuthenticated) {

@@ -1,107 +1,155 @@
 # Gemini Alert
 
-A emergency alert application that helps users send alerts to nearby people in emergency situations. Includes a Gemini AI-powered assistant for providing guidance and safety information.
-Visit ("https://gemini-alert-app.vercel.app/")
+Gemini Alert is a real-time emergency assistance platform. Users can broadcast distress alerts, see nearby helpers on a live map, and receive guidance from a Gemini-powered assistant. The project is split into a Vue 3 web client and a Flask backend that proxies Gemini API calls and persists data in Firebase services.
 
-## Features
+---
 
-- **Emergency Alerts**: Send emergency alerts to nearby users
-- **Location Tracking**: Track user locations and find nearby helpers
-- **Gemini AI Assistant**: Get safety advice and guidance from AI
-- **Voice Interface**: Ask questions and get responses with voice input/output
-- **Real-time Map**: View nearby users and alerts on an interactive map
-- **Firebase Integration**: Authentication, Firestore database, and Realtime Database
+## Architecture Overview
 
-## Tech Stack
+| Layer     | Technology                                             | Responsibilities |
+|-----------|---------------------------------------------------------|------------------|
+| Frontend  | Vue 3, Firebase Web SDK, Google Maps JavaScript API     | Authentication, live map, SOS dashboard, Gemini chat |
+| Backend   | Flask, Firebase Admin SDK, Google Generative AI SDK     | REST/SSE endpoints, Gemini proxy, Firebase writes |
+| Data      | Firebase Authentication, Firestore, Realtime Database   | User identity, alert storage, location streaming |
 
-- **Frontend**: Vue.js 3, Firebase SDK, Google Maps API
-- **Backend**: Flask, Firebase Admin SDK, Google Generative AI (Gemini API)
-- **Database**: Firebase Firestore and Realtime Database
-- **Authentication**: Firebase Authentication
-- **Deployment**: Firebase Hosting, Heroku/Google Cloud (backend)
+---
 
-## Setup for Development
+## Requirements
 
-1. **Clone the repository**:
+- Python 3.14 (or >= 3.10 compatible with `google-generativeai`)
+- Node.js 18+ (tested with Node 20/24)
+- Firebase project with Authentication, Firestore, and Realtime Database enabled
+- Google Maps JavaScript API key (with proper HTTP referrer restrictions)
+- Gemini API key with access to `models/gemini-2.5-flash`
 
-   ```
-   git clone https://github.com/yourusername/gemini-alert.git
-   cd gemini-alert
-   ```
+---
 
-2. **Install dependencies**:
+## Environment Configuration
 
-   ```
-   # Backend
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
+Templates are provided in `config/backend.env.example` and `config/frontend.env.example`.
 
-   # Frontend
-   cd gemini-frontend
-   npm install
-   ```
+```bash
+# Backend
+cp config/backend.env.example gemini-backend/.env
 
-3. **Environment Setup**:
+# Frontend
+cp config/frontend.env.example gemini-frontend/.env.local
+```
 
-   - Create a `.env.development` file in the `gemini-frontend` directory with your Firebase and Gemini API keys
-   - Set the `GEMINI_API_KEY` environment variable for the backend
+**Backend highlights**
 
-4. **Run the application**:
-   ```
-   ./start.sh
-   ```
+- `GEMINI_API_KEY` – required for Gemini features
+- `FIREBASE_SERVICE_ACCOUNT_KEY_PATH` **or** `FIREBASE_SERVICE_ACCOUNT_KEY` – Admin SDK credentials
+- `FIREBASE_DATABASE_URL` – required for realtime location + alerts
 
-## Deployment
+**Frontend highlights**
 
-### Vercel Deployment
+- `VUE_APP_API_BASE_URL` – Backend origin (`http://localhost:5001` for dev)
+- `VUE_APP_GOOGLE_MAPS_API_KEY` (+ optional `VUE_APP_GOOGLE_MAPS_MAP_ID`)
+- `VUE_APP_FIREBASE_*` – values from Firebase project settings
 
-1. **Deploy to Vercel**:
-   - Connect your GitHub repository to Vercel
-   - Vercel will automatically use the configuration in `vercel.json`
-   - Make sure your project structure follows this repository's setup
-   - Set the following environment variables in the Vercel dashboard:
-     - `VUE_APP_API_BASE_URL`: URL of your backend API
-     - All your Firebase configuration variables
+> ⚠️ **Secrets**: Never commit `.env*` files or `serviceAccountKey.json`. Load secrets from environment variables in production.
 
-### Firebase Hosting (Alternative)
+---
 
-1. **Build the frontend**:
+## Local Development
 
-   ```
-   cd gemini-frontend
-   npm run build:prod
-   ```
+### 1. Install dependencies
 
-2. **Deploy to Firebase Hosting**:
-   ```
-   npm run deploy
-   ```
+```bash
+# Backend
+cd gemini-backend
+python -m venv ../.venv-backend
+source ../.venv-backend/bin/activate   # Windows: ..\.venv-backend\Scripts\activate
+pip install --upgrade pip
+pip install -r requirements.txt
 
-### Backend Deployment
+# Frontend
+cd ../gemini-frontend
+npm install
+```
 
-1. **Prepare the backend**:
+### 2. Run the backend
 
-   ```
-   ./deploy-backend.sh
-   ```
+```bash
+cd ../gemini-backend
+source ../.venv-backend/bin/activate
+python app.py
+# Flask serves on http://localhost:5001
+```
 
-2. **Deploy to your preferred hosting platform**:
-   - Heroku, Google Cloud Run, AWS, etc.
-   - Set the necessary environment variables (see `.env.example`)
+### 3. Run the frontend
 
-## API Documentation
+```bash
+cd ../gemini-frontend
+npm run dev
+# Vue dev server runs on http://localhost:8080
+```
 
-### Backend API Endpoints
+> The frontend proxies Gemini calls to the backend (`VUE_APP_API_BASE_URL`). Ensure both services are running for full functionality.
 
-- `POST /ask`: Ask a question to the Gemini AI
-- `POST /ask-stream`: Ask a question with streaming response
-- `GET /user/profile`: Get the user's profile information
+---
+
+## Production Build & Deployment
+
+### Backend (Flask)
+
+- Recommended command: `gunicorn app:app --bind 0.0.0.0:5001 --workers 2`
+- Set environment variables in your hosting provider (`GEMINI_API_KEY`, `FIREBASE_DATABASE_URL`, `FIREBASE_SERVICE_ACCOUNT_KEY*`, etc.)
+- Sample Vercel configuration is located at `gemini-backend/vercel.json`
+
+### Frontend (Vue)
+
+```bash
+cd gemini-frontend
+npm run build:prod
+# Output emitted to gemini-frontend/dist/
+```
+
+- Deploy `dist/` to static hosting (Vercel, Firebase Hosting, Netlify, S3, etc.)
+- Configure the same environment variables in your hosting dashboard (prefixed with `VUE_APP_`)
+- Ensure the Google Maps API key allows the deployed domain(s)
+
+### Required Production Secrets
+
+| Variable | Description |
+|----------|-------------|
+| `GEMINI_API_KEY` | Google Generative AI API key |
+| `FIREBASE_SERVICE_ACCOUNT_KEY*` | Admin SDK credentials for backend |
+| `FIREBASE_DATABASE_URL` | Realtime Database root URL |
+| `VUE_APP_FIREBASE_*` | Web SDK config |
+| `VUE_APP_GOOGLE_MAPS_API_KEY` | Must include production domains in HTTP referrers |
+| `VUE_APP_API_BASE_URL` | HTTPS endpoint of the backend |
+
+---
+
+## Pre-Deployment Checklist
+
+- [ ] Remove local virtual environments (`rm -rf venv .venv-backend`) before committing
+- [ ] Ensure `serviceAccountKey.json` is excluded from version control
+- [ ] Confirm `.env` values exist in your hosting provider
+- [ ] Update Google Maps API key restrictions for localhost + production domains
+- [ ] Verify Firebase security rules meet production requirements
+- [ ] Review Gemini API quota and enable billing if needed
+
+---
+
+## Key Backend Endpoints
+
+- `POST /ask` – Gemini completion via REST
+- `POST /ask-stream` – Gemini streaming responses (Server-Sent Events)
+- `GET /chats` – Fetch authenticated user chat history
+- `POST /api/nearest-users` – Find nearby users from Realtime Database
+- `POST /api/send-sos` – Broadcast SOS alert to nearby helpers
+
+---
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Bug reports, feature requests, and pull requests are welcome. Please open an issue first to discuss major changes.
+
+---
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.

@@ -36,10 +36,10 @@ export default {
     const password = ref('')
     const error = ref(null)
     const successMessage = ref(null)
-    const loading = ref(false)
+    const isLoading = ref(false)
     const router = useRouter()
     const login = async () => {
-      loading.value = true
+      isLoading.value = true
       error.value = null
       successMessage.value = null
       try {
@@ -59,12 +59,12 @@ export default {
           error.value = 'Login failed: ' + (err.message || 'Unknown error')
         }
       } finally {
-        loading.value = false
+        isLoading.value = false
       }
     }
     // Test account function
     const useTestAccount = async () => {
-      loading.value = true
+      isLoading.value = true
       error.value = null
       successMessage.value = null
       const testEmail = 'test@example.com'
@@ -109,7 +109,7 @@ export default {
       } catch (err) {
         error.value = 'Failed to use demo account: ' + (err.message || 'Unknown error')
       } finally {
-        loading.value = false
+        isLoading.value = false
       }
     }
     return {
@@ -117,7 +117,7 @@ export default {
       password,
       error,
       successMessage,
-      loading,
+      isLoading,
       login,
       useTestAccount
     }

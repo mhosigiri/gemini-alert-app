@@ -14,7 +14,7 @@
       </div>
       <div class="form-group">
         <label for="password">Password</label>
-        <input type="password" id="password" v-model="password" required min="6">
+        <input type="password" id="password" v-model="password" required minlength="6">
         <small>Password must be at least 6 characters long</small>
       </div>
       <div class="buttons">
@@ -42,15 +42,15 @@ export default {
     const password = ref('')
     const error = ref(null)
     const successMessage = ref(null)
-    const loading = ref(false)
+    const isLoading = ref(false)
     const router = useRouter()
     const register = async () => {
-      loading.value = true
+      isLoading.value = true
       error.value = null
       successMessage.value = null
       if (password.value.length < 6) {
         error.value = 'Password must be at least 6 characters'
-        loading.value = false
+        isLoading.value = false
         return
       }
       try {
@@ -74,7 +74,7 @@ export default {
           error.value = 'Failed to create account: ' + (err.message || 'Unknown error')
         }
       } finally {
-        loading.value = false
+        isLoading.value = false
       }
     }
     return {
@@ -83,7 +83,7 @@ export default {
       password,
       error,
       successMessage,
-      loading,
+      isLoading,
       register
     }
   }

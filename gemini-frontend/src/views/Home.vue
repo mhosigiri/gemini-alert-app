@@ -178,32 +178,43 @@
               <span>{{ formatTime(alert.createdAt) }}</span>
             </div>
           </div>
-          <div v-if="Object.keys(alert.responses || {}).length > 0" class="alert-responses">
+          <div v-if="alert.responses.length > 0" class="alert-responses">
             <h4>Responses:</h4>
             <ul>
-              <li v-for="response in alert.responses" :key="response.userId">
+              <li
+                v-for="response in alert.responses"
+                :key="response.responseId || response.userId"
+              >
                 <strong>{{ response.userName }}:</strong> {{ response.message }}
                 <span class="response-time">{{ formatTime(response.timestamp) }}</span>
               </li>
             </ul>
           </div>
-          <div class="alert-actions" v-if="!alert.isOwnAlert">
-            <button @click="respondToAlert(alert.id)" class="respond-btn">Respond</button>
+          <div class="alert-actions">
+            <button @click="respondToAlert(alert.id)" class="respond-btn">
+              {{ alert.isOwnAlert ? 'Add Update' : 'Respond' }}
+            </button>
           </div>
         </li>
       </ul>
     </div>
     <div v-if="showResponseModal" class="modal-overlay">
       <div class="modal-content">
-        <h3>Respond to Alert</h3>
-        <p>Send a message to the person in need:</p>
+        <h3>{{ respondingToOwnAlert ? 'Update Your Alert' : 'Respond to Alert' }}</h3>
+        <p>
+          {{
+            respondingToOwnAlert
+              ? 'Share additional details or updates for helpers nearby.'
+              : 'Send a message to the person in need:'
+          }}
+        </p>
         <textarea
           v-model="responseMessage"
           placeholder="How can you help? (e.g., 'I'm nearby and can assist')"
           rows="3"
         ></textarea>
         <div class="modal-actions">
-          <button @click="showResponseModal = false" class="cancel-btn">Cancel</button>
+          <button @click="closeResponseModal" class="cancel-btn">Cancel</button>
           <button @click="submitResponse" :disabled="!responseMessage.trim()" class="submit-btn">
             Send Response
           </button>
@@ -234,7 +245,8 @@ import {
 import {
   sendEmergencyAlert,
   getNearbyAlerts,
-  respondToAlert as respondToAlertService
+  respondToAlert as respondToAlertService,
+  subscribeToNearbyAlerts
 } from '../services/alertService'
 import {
   initMap,
@@ -282,6 +294,7 @@ export default {
     const showResponseModal = ref(false)
     const responseMessage = ref('')
     const currentAlertId = ref(null)
+    const respondingToOwnAlert = ref(false)
     // Emergency types
     const emergencyTypes = [
       { label: 'General', value: 'general' },
@@ -332,7 +345,17 @@ export default {
       } catch (mapError) {
         mapAvailable.value = false
         locationStatus.value = 'Map service unavailable'
-        locationErrorMessage.value = 'Google Maps could not be loaded. Some features will be limited.'
+        
+        // Provide specific error messages
+        if (mapError.message && mapError.message.includes('restricted')) {
+          locationErrorMessage.value = 'Google Maps API key is restricted. Please update API key restrictions in Google Cloud Console. See console for details.'
+        } else if (mapError.message && mapError.message.includes('not found')) {
+          locationErrorMessage.value = 'Map element not found. Please refresh the page.'
+        } else {
+          locationErrorMessage.value = `Google Maps could not be loaded: ${mapError.message || 'Unknown error'}. Some features will be limited.`
+        }
+        
+        console.error('Map initialization failed:', mapError)
       }
     }
     const startTracking = async () => {
@@ -471,16 +494,24 @@ export default {
       }
     };
     const respondToAlert = (alertId) => {
+      const targetAlert = nearbyAlerts.value.find(alert => alert.id === alertId)
+      respondingToOwnAlert.value = !!(targetAlert && targetAlert.isOwnAlert)
       currentAlertId.value = alertId
+      responseMessage.value = ''
       showResponseModal.value = true
+    }
+    const closeResponseModal = () => {
+      showResponseModal.value = false
+      responseMessage.value = ''
+      currentAlertId.value = null
+      respondingToOwnAlert.value = false
     }
     const submitResponse = async () => {
       if (!responseMessage.value.trim() || !currentAlertId.value) return
       try {
         await respondToAlertService(currentAlertId.value, responseMessage.value)
-        showResponseModal.value = false
-        responseMessage.value = ''
-        currentAlertId.value = null
+        await refreshNearbyAlerts()
+        closeResponseModal()
       } catch (error) {
       }
     }
@@ -641,8 +672,23 @@ export default {
     }
     // Lifecycle hooks
     let userInterval = null
-    let alertInterval = null
     let privacyUpdateListener = null
+    let authUnsubscribe = null
+    let alertsUnsubscribe = null
+
+    const clearScheduledUpdates = () => {
+      if (userInterval) {
+        clearInterval(userInterval)
+        userInterval = null
+      }
+    }
+
+    const detachPrivacyListener = () => {
+      if (privacyUpdateListener) {
+        window.removeEventListener('privacy-settings-updated', privacyUpdateListener)
+        privacyUpdateListener = null
+      }
+    }
 
     onMounted(async () => {
       // Fetch initial chat history
@@ -654,24 +700,54 @@ export default {
       }
 
       // Check if user is logged in
-      onAuthStateChanged(auth, (currentUser) => {
+      authUnsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+        clearScheduledUpdates()
+        detachPrivacyListener()
+        if (alertsUnsubscribe) {
+          alertsUnsubscribe()
+          alertsUnsubscribe = null
+        }
+
         user.value = currentUser
         if (!currentUser) {
+          stopLocationTracking()
+          cleanupMap()
           router.push('/login')
           return
         }
         
+        // Wait for DOM to be fully ready before initializing map
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
         // Start location tracking
         startTracking()
         
-        // Initialize map
-        if (mapElement.value) {
+        // Initialize map - wait for element to be available
+        if (mapElement.value || document.getElementById('map')) {
           initializeMap()
+        } else {
+          // Retry after a longer delay if element not found
+          setTimeout(() => {
+            if (document.getElementById('map')) {
+              initializeMap()
+            } else {
+              console.error('Map element not found after timeout')
+            }
+          }, 500)
         }
         
         // Set up refresh intervals
         userInterval = setInterval(refreshNearbyUsers, 30000) // Every 30 seconds
-        alertInterval = setInterval(refreshNearbyAlerts, 15000) // Every 15 seconds
+        alertsUnsubscribe = subscribeToNearbyAlerts(10, async (alerts) => {
+          nearbyAlerts.value = alerts
+          if (mapAvailable.value) {
+            try {
+              await showAlerts(alerts)
+            } catch (error) {
+              console.error('Failed to update map alerts:', error)
+            }
+          }
+        })
         
         // Listen for privacy settings changes
         const handlePrivacyUpdate = (event) => {
@@ -691,11 +767,16 @@ export default {
       })
     })
 
-        onBeforeUnmount(() => {
-      if (userInterval) clearInterval(userInterval)
-      if (alertInterval) clearInterval(alertInterval)
-      if (privacyUpdateListener) {
-        window.removeEventListener('privacy-settings-updated', privacyUpdateListener)
+    onBeforeUnmount(() => {
+      clearScheduledUpdates()
+      detachPrivacyListener()
+      if (alertsUnsubscribe) {
+        alertsUnsubscribe()
+        alertsUnsubscribe = null
+      }
+      if (authUnsubscribe) {
+        authUnsubscribe()
+        authUnsubscribe = null
       }
     })
 
@@ -721,11 +802,13 @@ export default {
       nearbyAlerts,
       showResponseModal,
       responseMessage,
+      respondingToOwnAlert,
       canSendAlert,
       sendAlert,
       askGeminiAI,
       logout,
       respondToAlert,
+      closeResponseModal,
       submitResponse,
       formatDistance,
       formatTime,

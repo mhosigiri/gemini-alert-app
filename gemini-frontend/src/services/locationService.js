@@ -1,278 +1,255 @@
-import { auth, db, rtdb } from '../firebase';
-import { doc, updateDoc, GeoPoint, serverTimestamp, setDoc } from 'firebase/firestore';
-import { ref, set, onValue } from 'firebase/database';
+import { auth, rtdb } from '../firebase';
+import { ref, set, get } from 'firebase/database';
 import api from '../utils/api';
-// Options for geolocation
-const geoOptions = {
+
+const DEFAULT_COORDS = { latitude: 37.7749, longitude: -122.4194 };
+const GEO_OPTIONS = {
   enableHighAccuracy: true,
-  timeout: 20000, // 20 seconds
-  maximumAge: 60000 // Allow positions up to 1 minute old
+  timeout: 20000,
+  maximumAge: 60000
 };
-// Track user location
+const MIN_UPDATE_INTERVAL_MS = 15000;
+
 let watchId = null;
-// Start tracking user location
-export const startLocationTracking = async () => {
-  // Check privacy settings first
-  const privacySettings = getPrivacySettings();
-  if (!privacySettings.locationSharing) {
-    return false;
+let lastLocationPersisted = 0;
+let lastKnownPosition = null;
+
+const STORAGE_KEYS = {
+  locationSharing: 'locationSharingEnabled',
+  shareWithNearbyUsers: 'shareWithNearbyUsers',
+  allowEmergencyTracking: 'allowEmergencyTracking',
+  locationUpdateInterval: 'locationUpdateInterval'
+};
+
+const getBooleanSetting = (key, fallback) => {
+  const value = localStorage.getItem(key);
+  if (value === null) {
+    return fallback;
   }
-  if (!navigator.geolocation) {
-    return false;
+  return value === 'true';
+};
+
+const getNumericSetting = (key, fallback) => {
+  const value = localStorage.getItem(key);
+  const numeric = parseInt(value || '', 10);
+  return Number.isFinite(numeric) ? numeric : fallback;
+};
+
+const dispatchPrivacyUpdate = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('privacy-settings-updated', {
+        detail: getPrivacySettings()
+      })
+    );
   }
+};
+
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371;
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+const deg2rad = (deg) => deg * (Math.PI / 180);
+
+const persistLocation = async (position) => {
+  lastKnownPosition = position;
+
   if (!auth.currentUser) {
     return false;
   }
-  try {
-    // Get the update interval from privacy settings
-    const updateInterval = privacySettings.locationUpdateInterval || 30000;
-    // Watch position with custom interval
-    watchId = navigator.geolocation.watchPosition(
-      position => {
-        // Check if location sharing is still enabled before updating
-        const currentSettings = getPrivacySettings();
-        if (currentSettings.locationSharing) {
-          updateUserLocation(position);
-        } else {
-          // Stop tracking if disabled
-          stopLocationTracking();
-        }
-      },
-      error => {
-        // Silently handle error in production
-      },
-      { ...geoOptions, maximumAge: updateInterval }
-    );
+
+  const { latitude, longitude, accuracy } = position.coords;
+  const timestamp = Date.now();
+  const settings = getPrivacySettings();
+
+  const throttleInterval = Math.max(settings.locationUpdateInterval, MIN_UPDATE_INTERVAL_MS);
+  if (timestamp - lastLocationPersisted < throttleInterval) {
     return true;
-  } catch (error) {
+  }
+  lastLocationPersisted = timestamp;
+
+  const payload = {
+    userId: auth.currentUser.uid,
+    latitude,
+    longitude,
+    accuracy,
+    timestamp,
+    displayName: auth.currentUser.displayName || (auth.currentUser.email ? auth.currentUser.email.split('@')[0] : 'User'),
+    email: auth.currentUser.email
+  };
+
+  try {
+    await api.post('/api/location', payload);
+  } catch (apiError) {
+    console.warn('[LocationService] Backend location sync failed', apiError);
+  }
+
+  if (rtdb) {
+    try {
+      const locationRef = ref(rtdb, `locations/${auth.currentUser.uid}`);
+      await set(locationRef, {
+        latitude,
+        longitude,
+        lat: latitude,
+        lng: longitude,
+        accuracy,
+        timestamp,
+        displayName: auth.currentUser.displayName || 'User',
+        email: auth.currentUser.email
+      });
+    } catch (rtdbError) {
+      console.warn('[LocationService] Realtime Database location update failed', rtdbError);
+    }
+  }
+
+  return true;
+};
+
+export const startLocationTracking = async () => {
+  const settings = getPrivacySettings();
+  if (!settings.locationSharing || !auth.currentUser || typeof navigator === 'undefined' || !navigator.geolocation) {
     return false;
   }
+
+  if (watchId !== null) {
+    return true;
+  }
+
+  return new Promise((resolve) => {
+    let resolved = false;
+
+    const onSuccess = async (position) => {
+      await persistLocation(position);
+      if (!resolved) {
+        resolved = true;
+        resolve(true);
+      }
+    };
+
+    const onError = (error) => {
+      console.warn('[LocationService] watchPosition error', error);
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+      if (!resolved) {
+        resolved = true;
+        resolve(false);
+      }
+    };
+
+    try {
+      watchId = navigator.geolocation.watchPosition(onSuccess, onError, GEO_OPTIONS);
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          resolve(true);
+        }
+      }, 3000);
+    } catch (error) {
+      console.error('[LocationService] Failed to start location tracking', error);
+      watchId = null;
+      resolve(false);
+    }
+  });
 };
-// Stop tracking user location
+
 export const stopLocationTracking = () => {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    return false;
+  }
   if (watchId !== null) {
     navigator.geolocation.clearWatch(watchId);
     watchId = null;
+    lastLocationPersisted = 0;
     return true;
   }
   return false;
 };
-// Update user location in Firestore and Realtime Database
-const updateUserLocation = async (position) => {
-  const { latitude, longitude, accuracy } = position.coords;
-  const timestamp = new Date().getTime();
-  // Make sure user is authenticated
-  if (!auth.currentUser) {
-    return false;
-  }
-  const userId = auth.currentUser.uid;
-  try {
-    // Update backend first
-  try {
-      await api.post('/api/location', {
-        userId,
-        latitude,
-        longitude
-      });
-    } catch (backendError) {
-      // Continue with Firebase updates even if backend fails
-    }
-    // Check if we're on Vercel deployment
-    const isVercelProduction = window.location.hostname.includes('vercel.app');
-    // Update Firestore (for permanent storage)
-    // Skip Firestore operations in the Vercel production environment due to permission issues
-    if (isVercelProduction) {
-    } else {
-      const userRef = doc(db, 'users', userId);
-      try {
-        // Try to update the document
-        await updateDoc(userRef, {
-          location: new GeoPoint(latitude, longitude),
-          locationAccuracy: accuracy,
-          lastLocationUpdate: serverTimestamp()
-        });
-      } catch (error) {
-        // If document doesn't exist or permission denied, create it instead
-        if (error.code === 'not-found' || error.code === 'permission-denied') {
-          try {
-            await setDoc(userRef, {
-              location: new GeoPoint(latitude, longitude),
-              locationAccuracy: accuracy,
-              lastLocationUpdate: serverTimestamp(),
-              displayName: auth.currentUser.displayName || 'User',
-              email: auth.currentUser.email,
-              createdAt: serverTimestamp()
-            });
-          } catch (innerError) {
-            // Continue anyway to try the Realtime Database update
-          }
-        } else {
-          // Continue anyway to try the Realtime Database update
-        }
-      }
-    }
-    // Update Realtime Database (for real-time tracking)
-    // For Vercel deployment, use mock data instead of trying to update RTDB
-    if (isVercelProduction) {
-      // In production Vercel deployment, just log and return success
-      return true;
-    }
-    try {
-      // First, check if user is authenticated again (token might have expired)
-      if (!auth.currentUser) {
-        throw new Error('User authentication token expired or invalid');
-      }
-      try {
-        // Get a fresh token
-        await auth.currentUser.getIdToken(true);
-        // Try with all possible formats to maximize chances of success
-        const locationData = {
-          // Primary format (what your code uses)
-          latitude,
-          longitude,
-          // Alternative format (what your rules might expect)
-          lat: latitude,
-          lng: longitude,
-          // Common data for both formats
-          accuracy,
-          timestamp,
-          displayName: auth.currentUser.displayName || 'User',
-          email: auth.currentUser.email
-        };
-        // Try to update the database
-        const locationRef = ref(rtdb, `locations/${userId}`);
-        await set(locationRef, locationData);
-        return true; // Successfully updated
-      } catch (error) {
-        // Just return success to avoid disrupting user experience
-        return true;
-      }
-    } catch (error) {
-      // Return success anyway to avoid disrupting user experience
-      return true;
-    }
-  } catch (error) {
-    return false;
-  }
-};
-// Get a single location update
+
 export const getCurrentLocation = () => {
   return new Promise((resolve) => {
-    if (!navigator.geolocation) {
-      // Create a synthetic position
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
       resolve({
-        coords: { latitude: 37.7749, longitude: -122.4194 }, // San Francisco
+        coords: DEFAULT_COORDS,
         timestamp: Date.now()
       });
       return;
     }
-    // Set a timeout in case geolocation takes too long
-    const timeoutId = setTimeout(() => {
-      // Create a synthetic position
-      resolve({
-        coords: { latitude: 37.7749, longitude: -122.4194 }, // San Francisco
-        timestamp: Date.now()
-      });
-    }, geoOptions.timeout + 1000); // Slightly longer than the geolocation timeout
+
     navigator.geolocation.getCurrentPosition(
-      position => {
-        clearTimeout(timeoutId);
+      (position) => {
+        lastKnownPosition = position;
         resolve(position);
       },
-      error => {
-        clearTimeout(timeoutId);
-        // Create a synthetic position
+      () => {
+        if (lastKnownPosition) {
+          resolve(lastKnownPosition);
+          return;
+        }
         resolve({
-          coords: { latitude: 37.7749, longitude: -122.4194 }, // San Francisco
+          coords: DEFAULT_COORDS,
           timestamp: Date.now()
         });
       },
-      geoOptions
+      GEO_OPTIONS
     );
   });
 };
-// Find nearby users from Realtime Database
-export const findNearbyUsers = async (radius = 5) => { // radius in kilometers
-  if (!auth.currentUser) {
+
+export const findNearbyUsers = async (radiusInKm = 5) => {
+  if (!auth.currentUser || !rtdb) {
     return [];
   }
+
   try {
-    // Get current user's location
-    const position = await getCurrentLocation();
-    const currentLat = position.coords.latitude;
-    const currentLng = position.coords.longitude;
-    // Get all user locations from Realtime Database
-    return new Promise((resolve) => {
-        const locationsRef = ref(rtdb, 'locations');
-          onValue(locationsRef, (snapshot) => {
-            try {
-              const locations = snapshot.val();
-              if (!locations) {
-            resolve([]);
-                return;
-              }
-              // Calculate distance for each user and filter by radius
-              const nearbyUsers = Object.entries(locations)
-                .filter(([uid]) => uid !== auth.currentUser.uid) // Exclude current user
-                .map(([uid, data]) => {
-                  try {
-                    // Try both naming conventions (latitude/longitude and lat/lng)
-                    const userLat = data.latitude || data.lat;
-                    const userLng = data.longitude || data.lng;
-                    // Ensure latitude and longitude exist
-                    if (!userLat || !userLng) {
-                      return null;
-                    }
-                    const distance = calculateDistance(
-                      currentLat,
-                      currentLng, 
-                      userLat, 
-                      userLng
-                    );
-                    return {
-                      uid,
-                      displayName: data.displayName || 'Helper',
-                      email: data.email,
-                      distance, // in km
-                      latitude: userLat,
-                      longitude: userLng,
-                      lastUpdated: new Date(data.timestamp || Date.now())
-                    };
-                  } catch (err) {
-                    return null;
-                  }
-                })
-                .filter(user => user !== null && user.distance <= radius)
-                .sort((a, b) => a.distance - b.distance);
-                resolve(nearbyUsers);
-            } catch (parseError) {
-          resolve([]);
-            }
-          }, (error) => {
-        resolve([]);
-          });
-    });
+    const currentPosition = await getCurrentLocation();
+    const currentLat = currentPosition.coords.latitude;
+    const currentLng = currentPosition.coords.longitude;
+
+    const locationsRef = ref(rtdb, 'locations');
+    const snapshot = await get(locationsRef);
+    const locations = snapshot.val();
+
+    if (!locations) {
+      return [];
+    }
+
+    return Object.entries(locations)
+      .filter(([uid]) => uid !== auth.currentUser.uid)
+      .map(([uid, data]) => {
+        const lat = Number(data.latitude ?? data.lat);
+        const lng = Number(data.longitude ?? data.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          return null;
+        }
+        const distance = calculateDistance(currentLat, currentLng, lat, lng);
+        return {
+          uid,
+          displayName: data.displayName || 'Helper',
+          email: data.email,
+          distance,
+          latitude: lat,
+          longitude: lng,
+          lastUpdated: new Date(data.timestamp || Date.now())
+        };
+      })
+      .filter((entry) => entry && entry.distance <= radiusInKm)
+      .sort((a, b) => a.distance - b.distance);
   } catch (error) {
+    console.warn('[LocationService] Failed to load nearby users', error);
     return [];
   }
 };
-// Calculate distance between two points using Haversine formula
-const calculateDistance = (lat1, lon1, lat2, lon2) => {
-  const R = 6371; // Radius of the earth in km
-  const dLat = deg2rad(lat2 - lat1);
-  const dLon = deg2rad(lon2 - lon1);
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2); 
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-  const distance = R * c; // Distance in km
-  return distance;
-};
-const deg2rad = (deg) => {
-  return deg * (Math.PI/180);
-}; 
-// Get nearest users from backend
+
 export const getNearestUsers = async (latitude, longitude) => {
   if (!auth.currentUser) {
     return [];
@@ -285,69 +262,74 @@ export const getNearestUsers = async (latitude, longitude) => {
     });
     return response.data.nearest_users || [];
   } catch (error) {
-    // Fall back to mock data
+    console.warn('[LocationService] Backend nearest users lookup failed', error);
     return [];
   }
 };
-// Privacy and Security Functions
-// Check if location permission is granted
+
 export const checkLocationPermission = async () => {
-  if (!navigator.permissions) {
-    // Permissions API not supported
+  if (typeof navigator === 'undefined' || !navigator.permissions) {
     return 'unknown';
   }
   try {
     const result = await navigator.permissions.query({ name: 'geolocation' });
-    return result.state; // 'granted', 'denied', or 'prompt'
-  } catch (error) {
+    return result.state;
+  } catch {
     return 'unknown';
   }
 };
-// Request location permission
+
 export const requestLocationPermission = async () => {
   try {
-    // This will trigger the browser's permission prompt
     const position = await getCurrentLocation();
     return position ? 'granted' : 'denied';
   } catch (error) {
-    if (error.code === 1) {
+    if (error && error.code === 1) {
       return 'denied';
     }
     return 'error';
   }
 };
-// Location sharing preferences (stored in localStorage)
+
 export const getLocationSharingPreference = () => {
-  return localStorage.getItem('locationSharingEnabled') === 'true';
+  return getBooleanSetting(STORAGE_KEYS.locationSharing, true);
 };
+
 export const setLocationSharingPreference = (enabled) => {
-  localStorage.setItem('locationSharingEnabled', enabled ? 'true' : 'false');
+  localStorage.setItem(STORAGE_KEYS.locationSharing, enabled ? 'true' : 'false');
   if (!enabled) {
-    // Stop tracking if user disables location sharing
     stopLocationTracking();
   }
+  dispatchPrivacyUpdate();
 };
-// Get privacy settings
+
 export const getPrivacySettings = () => {
   return {
-    locationSharing: getLocationSharingPreference(),
-    shareWithNearbyUsers: localStorage.getItem('shareWithNearbyUsers') !== 'false',
-    allowEmergencyTracking: localStorage.getItem('allowEmergencyTracking') !== 'false',
-    locationUpdateInterval: parseInt(localStorage.getItem('locationUpdateInterval') || '30000', 10)
+    locationSharing: getBooleanSetting(STORAGE_KEYS.locationSharing, true),
+    shareWithNearbyUsers: getBooleanSetting(STORAGE_KEYS.shareWithNearbyUsers, true),
+    allowEmergencyTracking: getBooleanSetting(STORAGE_KEYS.allowEmergencyTracking, true),
+    locationUpdateInterval: getNumericSetting(STORAGE_KEYS.locationUpdateInterval, 30000)
   };
 };
-// Update privacy settings
+
 export const updatePrivacySettings = (settings) => {
   if (settings.locationSharing !== undefined) {
-    setLocationSharingPreference(settings.locationSharing);
+    localStorage.setItem(STORAGE_KEYS.locationSharing, settings.locationSharing ? 'true' : 'false');
+    if (!settings.locationSharing) {
+      stopLocationTracking();
+    }
   }
   if (settings.shareWithNearbyUsers !== undefined) {
-    localStorage.setItem('shareWithNearbyUsers', settings.shareWithNearbyUsers ? 'true' : 'false');
+    localStorage.setItem(STORAGE_KEYS.shareWithNearbyUsers, settings.shareWithNearbyUsers ? 'true' : 'false');
   }
   if (settings.allowEmergencyTracking !== undefined) {
-    localStorage.setItem('allowEmergencyTracking', settings.allowEmergencyTracking ? 'true' : 'false');
+    localStorage.setItem(STORAGE_KEYS.allowEmergencyTracking, settings.allowEmergencyTracking ? 'true' : 'false');
   }
   if (settings.locationUpdateInterval !== undefined) {
-    localStorage.setItem('locationUpdateInterval', settings.locationUpdateInterval.toString());
+    localStorage.setItem(
+      STORAGE_KEYS.locationUpdateInterval,
+      String(settings.locationUpdateInterval)
+    );
   }
-}; 
+  dispatchPrivacyUpdate();
+};

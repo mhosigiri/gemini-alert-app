@@ -1,6 +1,16 @@
 import { auth, db, rtdb } from '../firebase';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
-import { ref, push, set, onValue } from 'firebase/database';
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  query,
+  where,
+  getDocs,
+  doc,
+  updateDoc,
+  arrayUnion
+} from 'firebase/firestore';
+import { ref, push, set, get, onValue } from 'firebase/database';
 import { findNearbyUsers, getCurrentLocation } from './locationService';
 import api from '../utils/api';
 // Send an emergency alert to nearby users
@@ -64,25 +74,38 @@ export const sendEmergencyAlert = async (message, emergencyType) => {
     });
     // Find nearby users within 10km radius
     const nearbyUsers = await findNearbyUsers(10);
-    if (nearbyUsers.length === 0) {
-    } else {
+    if (nearbyUsers.length > 0) {
       // Get FCM tokens for these users from Firestore
-      const userIds = nearbyUsers.map(user => user.uid);
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('__name__', 'in', userIds));
-      const querySnapshot = await getDocs(q);
-      // Store the recipients for this alert
+      const userIds = Array.from(
+        new Set(nearbyUsers.map(user => user.uid).filter(Boolean))
+      );
       const recipients = [];
-      querySnapshot.forEach((doc) => {
-        const userData = doc.data();
-        if (userData.fcmToken) {
-          recipients.push({
-            userId: doc.id,
-            fcmToken: userData.fcmToken,
-            distance: nearbyUsers.find(u => u.uid === doc.id)?.distance || 0
-          });
+      if (userIds.length) {
+        const usersRef = collection(db, 'users');
+        const MAX_IN_CLAUSE = 10;
+        for (let i = 0; i < userIds.length; i += MAX_IN_CLAUSE) {
+          const chunk = userIds.slice(i, i + MAX_IN_CLAUSE);
+          if (!chunk.length) {
+            continue;
+          }
+          try {
+            const q = query(usersRef, where('__name__', 'in', chunk));
+            const querySnapshot = await getDocs(q);
+            querySnapshot.forEach((docSnapshot) => {
+              const userData = docSnapshot.data();
+              if (userData.fcmToken) {
+                recipients.push({
+                  userId: docSnapshot.id,
+                  fcmToken: userData.fcmToken,
+                  distance: nearbyUsers.find(u => u.uid === docSnapshot.id)?.distance || 0
+                });
+              }
+            });
+          } catch (firestoreError) {
+            console.warn('[AlertService] Failed to fetch recipients chunk', firestoreError);
+          }
         }
-      });
+      }
       // Store recipients in the alert document
       if (recipients.length > 0) {
         // Use cloud function to send notifications (will need to be implemented)
@@ -126,22 +149,84 @@ export const getNearbyAlerts = async (radius = 10) => {
     const currentLng = position.coords.longitude;
     // Get all active alerts from Realtime Database
     const alertsRef = ref(rtdb, 'alerts');
-    return new Promise((resolve, reject) => {
-      onValue(alertsRef, (snapshot) => {
-        const alerts = snapshot.val();
-        if (!alerts) {
-          resolve([]);
-          return;
-        }
-        
-        // Get current time
+    const snapshot = await get(alertsRef);
+    const alerts = snapshot.val();
+    if (!alerts) {
+      return [];
+    }
+
+    // Get current time
+    const now = Date.now();
+    const threeHoursInMs = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
+
+    return Object.entries(alerts)
+      .filter(([, data]) => {
+        const alertAge = now - data.createdAt;
+        return data.status === 'active' && alertAge < threeHoursInMs;
+      })
+      .map(([alertId, data]) => {
+        const distance = calculateDistance(
+          currentLat,
+          currentLng,
+          data.location.latitude,
+          data.location.longitude
+        );
+        const responsesArray = data.responses
+          ? Object.values(data.responses).map((response) => ({
+              ...response,
+              timestamp: response.timestamp || 0
+            }))
+          : [];
+        responsesArray.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+        return {
+          id: alertId,
+          userId: data.userId,
+          userName: data.userName,
+          message: data.message,
+          emergencyType: data.emergencyType,
+          distance, // in km
+          location: data.location,
+          createdAt: new Date(data.createdAt),
+          isOwnAlert: data.userId === auth.currentUser.uid,
+          responses: responsesArray
+        };
+      })
+      .filter(alert => alert.distance <= radius)
+      .filter(alert => {
+        const THIRTY_MIN = 30 * 60 * 1000;
+        return Date.now() - alert.createdAt.getTime() <= THIRTY_MIN;
+      })
+      .sort((a, b) => a.distance - b.distance);
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const subscribeToNearbyAlerts = (radius = 10, onUpdate = () => {}) => {
+  if (!auth.currentUser) {
+    onUpdate([]);
+    return () => {};
+  }
+  const alertsRef = ref(rtdb, 'alerts');
+  const unsubscribe = onValue(
+    alertsRef,
+    async (snapshot) => {
+      const alerts = snapshot.val();
+      if (!alerts) {
+        onUpdate([]);
+        return;
+      }
+      try {
+        const position = await getCurrentLocation();
+        const currentLat = position.coords.latitude;
+        const currentLng = position.coords.longitude;
+
         const now = Date.now();
-        const threeHoursInMs = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
-        
-        // Filter and format alerts
+        const threeHoursInMs = 3 * 60 * 60 * 1000;
+
         const nearbyAlerts = Object.entries(alerts)
           .filter(([, data]) => {
-            // Filter out alerts older than 3 hours
             const alertAge = now - data.createdAt;
             return data.status === 'active' && alertAge < threeHoursInMs;
           })
@@ -152,17 +237,25 @@ export const getNearbyAlerts = async (radius = 10) => {
               data.location.latitude,
               data.location.longitude
             );
+            const responsesArray = data.responses
+              ? Object.values(data.responses).map((response) => ({
+                  ...response,
+                  timestamp: response.timestamp || 0
+                }))
+              : [];
+            responsesArray.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
             return {
               id: alertId,
               userId: data.userId,
               userName: data.userName,
               message: data.message,
               emergencyType: data.emergencyType,
-              distance, // in km
+              distance,
               location: data.location,
               createdAt: new Date(data.createdAt),
               isOwnAlert: data.userId === auth.currentUser.uid,
-              responses: data.responses || {}
+              responses: responsesArray
             };
           })
           .filter(alert => alert.distance <= radius)
@@ -171,14 +264,17 @@ export const getNearbyAlerts = async (radius = 10) => {
             return Date.now() - alert.createdAt.getTime() <= THIRTY_MIN;
           })
           .sort((a, b) => a.distance - b.distance);
-        resolve(nearbyAlerts);
-      }, (error) => {
-        reject(error);
-      });
-    });
-  } catch (error) {
-    throw error;
-  }
+
+        onUpdate(nearbyAlerts);
+      } catch (error) {
+        onUpdate([]);
+      }
+    },
+    () => {
+      onUpdate([]);
+    }
+  );
+  return () => unsubscribe();
 };
 // Respond to an alert (offer help)
 export const respondToAlert = async (alertId, message) => {
@@ -189,24 +285,32 @@ export const respondToAlert = async (alertId, message) => {
     const userId = auth.currentUser.uid;
     const userName = auth.currentUser.displayName || 'Anonymous';
     // Add response to Realtime Database
-    const responseRef = ref(rtdb, `alerts/${alertId}/responses/${userId}`);
-    await set(responseRef, {
+    const responsePayload = {
+      responseId: null,
       userId,
       userName,
       message,
       timestamp: Date.now()
-    });
+    };
+    const responsesRef = ref(rtdb, `alerts/${alertId}/responses`);
+    const responseRef = push(responsesRef);
+    responsePayload.responseId = responseRef.key;
+    await set(responseRef, responsePayload);
     // Add helper to the Firestore document
     const alertRef = doc(db, 'alerts', alertId);
-    await updateDoc(alertRef, {
-      [`helpResponses.${userId}`]: {
-        userId,
-        userName,
-        message,
-        timestamp: serverTimestamp()
-      }
-    });
-    return { success: true };
+    try {
+      await updateDoc(alertRef, {
+        helpResponses: arrayUnion({
+          userId,
+          userName,
+          message,
+          timestamp: serverTimestamp()
+        })
+      });
+    } catch (firestoreError) {
+      console.warn('[AlertService] Failed to update helpResponses', firestoreError);
+    }
+    return { success: true, responseId: responseRef.key };
   } catch (error) {
     throw error;
   }
