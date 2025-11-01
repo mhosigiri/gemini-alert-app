@@ -237,7 +237,6 @@ import { signOut, onAuthStateChanged } from 'firebase/auth'
 import {
   startLocationTracking,
   stopLocationTracking,
-  findNearbyUsers,
   getPrivacySettings,
   getNearestUsers,
   getCurrentLocation
@@ -255,7 +254,7 @@ import {
   showAlerts,
   cleanupMap
 } from '../services/mapService'
-import { askGemini, askGeminiStream, getChatHistory } from '../services/geminiService'
+import { askGeminiStream, getChatHistory } from '../services/geminiService'
 import PrivacySettings from '../components/PrivacySettings.vue'
 export default {
   name: 'HomePage',
@@ -323,7 +322,7 @@ export default {
         await initMap('map')
         mapAvailable.value = true
         try {
-          const location = await centerMapOnUserLocation(5) // 5km radius
+          await centerMapOnUserLocation(5) // 5km radius
           // Show nearby users on map
           await refreshNearbyUsers()
           // Show nearby alerts
@@ -613,7 +612,7 @@ export default {
       utterance.onend = () => {
         isSpeaking.value = false
       }
-      utterance.onerror = (event) => {
+      utterance.onerror = () => {
         isSpeaking.value = false
       }
       speechSynthesis.value.speak(utterance)
@@ -630,7 +629,7 @@ export default {
         .then(() => {
           alert('Message copied to clipboard')
         })
-        .catch(err => {
+        .catch(() => {
         })
     }
     // For backward compatibility
@@ -663,7 +662,7 @@ export default {
           const transcript = event.results[0][0].transcript
           geminiQuestion.value = transcript
         }
-        speechRecognition.value.onerror = (event) => {
+        speechRecognition.value.onerror = () => {
           isListening.value = false
         }
       } catch (error) {
@@ -691,6 +690,7 @@ export default {
     }
 
     onMounted(async () => {
+      initSpeechRecognition()
       // Fetch initial chat history
       try {
         const history = await getChatHistory()

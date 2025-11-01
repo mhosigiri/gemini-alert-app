@@ -23,16 +23,11 @@
       "dest": "gemini-backend/app.py"
     },
     {
-      "src": "/(.*)",
-      "dest": "gemini-frontend/dist/$1",
-      "check": true
-    },
-    {
       "handle": "filesystem"
     },
     {
       "src": "/.*",
-      "dest": "gemini-frontend/dist/index.html"
+      "dest": "/index.html"
     }
   ],
   "github": {
