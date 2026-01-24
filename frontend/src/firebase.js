@@ -1,7 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { getDatabase } from 'firebase/database';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 
 const firebaseConfig = {
@@ -33,7 +32,6 @@ const app = initializeApp(firebaseConfig);
 
 const auth = getAuth(app);
 const db = getFirestore(app);
-const rtdb = getDatabase(app);
 
 let analytics = null;
 
@@ -51,4 +49,4 @@ if (typeof window !== 'undefined') {
     });
 }
 
-export { app, auth, db, rtdb, analytics };
+export { app, auth, db, analytics };

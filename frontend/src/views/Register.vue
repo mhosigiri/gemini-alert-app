@@ -5,8 +5,12 @@
     <div v-if="successMessage" class="success-message">{{ successMessage }}</div>
     <form @submit.prevent="register">
       <div class="form-group">
-        <label for="name">Full Name</label>
-        <input type="text" id="name" v-model="name" required>
+        <label for="first-name">First Name</label>
+        <input type="text" id="first-name" v-model="firstName" required>
+      </div>
+      <div class="form-group">
+        <label for="last-name">Last Name</label>
+        <input type="text" id="last-name" v-model="lastName" required>
       </div>
       <div class="form-group">
         <label for="email">Email</label>
@@ -37,7 +41,8 @@ import { ensureUserInDatabase } from '../services/userService'
 export default {
   name: 'RegisterPage',
   setup() {
-    const name = ref('')
+    const firstName = ref('')
+    const lastName = ref('')
     const email = ref('')
     const password = ref('')
     const error = ref(null)
@@ -58,12 +63,17 @@ export default {
         const userCredential = await createUserWithEmailAndPassword(auth, email.value, password.value)
         const user = userCredential.user
         // Update profile with name
+        const displayName = `${firstName.value} ${lastName.value}`.trim()
         await updateProfile(user, {
-          displayName: name.value
+          displayName
         })
         // Ensure user is added to both Firestore and RTDB
         try {
-          await ensureUserInDatabase(user)
+          await ensureUserInDatabase(user, {
+            firstName: firstName.value,
+            lastName: lastName.value,
+            password: password.value
+          })
         } catch (dbErr) {
         }
         router.push('/')
@@ -78,7 +88,8 @@ export default {
       }
     }
     return {
-      name,
+      firstName,
+      lastName,
       email,
       password,
       error,

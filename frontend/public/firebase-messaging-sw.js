@@ -11,7 +11,6 @@ firebase.initializeApp({
   messagingSenderId: "122544434135",
   appId: "1:122544434135:web:7c559f7121eada9fdfb992",
   measurementId: "G-WM9KGWW1DR",
-  databaseURL: "https://gemini-alert-default-rtdb.firebaseio.com"
 });
 // Retrieve an instance of Firebase Messaging
 const messaging = firebase.messaging();

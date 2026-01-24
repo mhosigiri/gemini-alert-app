@@ -1,5 +1,4 @@
-import { auth, rtdb } from '../firebase';
-import { ref, set, get } from 'firebase/database';
+import { auth } from '../firebase';
 import api from '../utils/api';
 
 const DEFAULT_COORDS = { latitude: 37.7749, longitude: -122.4194 };
@@ -45,20 +44,6 @@ const dispatchPrivacyUpdate = () => {
   }
 };
 
-const calculateDistance = (lat1, lon1, lat2, lon2) => {
-  const R = 6371;
-  const dLat = deg2rad(lat2 - lat1);
-  const dLon = deg2rad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-};
-
-const deg2rad = (deg) => deg * (Math.PI / 180);
-
 const persistLocation = async (position) => {
   lastKnownPosition = position;
 
@@ -90,24 +75,6 @@ const persistLocation = async (position) => {
     await api.post('/api/location', payload);
   } catch (apiError) {
     console.warn('[LocationService] Backend location sync failed', apiError);
-  }
-
-  if (rtdb) {
-    try {
-      const locationRef = ref(rtdb, `locations/${auth.currentUser.uid}`);
-      await set(locationRef, {
-        latitude,
-        longitude,
-        lat: latitude,
-        lng: longitude,
-        accuracy,
-        timestamp,
-        displayName: auth.currentUser.displayName || 'User',
-        email: auth.currentUser.email
-      });
-    } catch (rtdbError) {
-      console.warn('[LocationService] Realtime Database location update failed', rtdbError);
-    }
   }
 
   return true;
@@ -206,7 +173,7 @@ export const getCurrentLocation = () => {
 };
 
 export const findNearbyUsers = async (radiusInKm = 5) => {
-  if (!auth.currentUser || !rtdb) {
+  if (!auth.currentUser) {
     return [];
   }
 
@@ -214,43 +181,25 @@ export const findNearbyUsers = async (radiusInKm = 5) => {
     const currentPosition = await getCurrentLocation();
     const currentLat = currentPosition.coords.latitude;
     const currentLng = currentPosition.coords.longitude;
-
-    const locationsRef = ref(rtdb, 'locations');
-    const snapshot = await get(locationsRef);
-    const locations = snapshot.val();
-
-    if (!locations) {
-      return [];
-    }
-
-    return Object.entries(locations)
-      .filter(([uid]) => uid !== auth.currentUser.uid)
-      .map(([uid, data]) => {
-        const lat = Number(data.latitude ?? data.lat);
-        const lng = Number(data.longitude ?? data.lng);
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-          return null;
-        }
-        const distance = calculateDistance(currentLat, currentLng, lat, lng);
-        return {
-          uid,
-          displayName: data.displayName || 'Helper',
-          email: data.email,
-          distance,
-          latitude: lat,
-          longitude: lng,
-          lastUpdated: new Date(data.timestamp || Date.now())
-        };
-      })
-      .filter((entry) => entry && entry.distance <= radiusInKm)
-      .sort((a, b) => a.distance - b.distance);
+    const nearestUsers = await getNearestUsers(currentLat, currentLng, radiusInKm);
+    return nearestUsers.map((user) => ({
+      uid: user.userId,
+      displayName: user.displayName || 'Helper',
+      email: user.email,
+      distance: user.distance_km,
+      latitude: user.latitude,
+      longitude: user.longitude,
+      lastUpdated: user.lastUpdated
+        ? new Date(user.lastUpdated * 1000)
+        : new Date()
+    }));
   } catch (error) {
     console.warn('[LocationService] Failed to load nearby users', error);
     return [];
   }
 };
 
-export const getNearestUsers = async (latitude, longitude) => {
+export const getNearestUsers = async (latitude, longitude, radius = 5) => {
   if (!auth.currentUser) {
     return [];
   }
@@ -258,7 +207,8 @@ export const getNearestUsers = async (latitude, longitude) => {
     const response = await api.post('/api/nearest-users', {
       userId: auth.currentUser.uid,
       latitude,
-      longitude
+      longitude,
+      radius
     });
     return response.data.nearest_users || [];
   } catch (error) {

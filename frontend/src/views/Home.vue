@@ -63,14 +63,20 @@
           <p>{{ notificationMessage }}</p>
         </div>
         <div v-if="showGeminiPanel" class="gemini-panel">
-          <h3>Ask Gemini AI for Help</h3>
-          <p class="gemini-intro">Need advice or tips for a crisis situation? Ask Gemini AI for help.</p>
-          <div class="chat-container">
-            <!-- Chat messages go here -->
-            <div v-if="chatHistory.length === 0" class="empty-chat">
-              <p>Start a conversation with Gemini. Ask for emergency assistance, safety tips, or how to respond to specific situations.</p>
+          <div class="gemini-header">
+            <div class="gemini-header-icon">🤖</div>
+            <div class="gemini-header-text">
+              <h3>Emergency AI Assistant</h3>
+              <p class="gemini-intro">Get instant guidance for crisis situations</p>
             </div>
-            <div v-else class="chat-messages">
+          </div>
+          <div class="chat-container">
+            <div v-if="chatHistory.length === 0" class="empty-chat">
+              <div class="empty-chat-icon">💬</div>
+              <p class="empty-chat-title">How can I help you?</p>
+              <p class="empty-chat-subtitle">Ask about emergency procedures, safety tips, or crisis response guidance.</p>
+            </div>
+            <div v-else class="chat-messages" ref="chatMessagesContainer">
               <div 
                 v-for="(message, index) in chatHistory" 
                 :key="index" 
@@ -90,21 +96,20 @@
                       @click="speakMessage(message.text)"
                       :disabled="isSpeaking"
                       class="message-action-btn"
-                      title="Listen to this message"
+                      title="Listen"
                     >
-                      <i class="speaker-icon">🔊</i>
+                      🔊
                     </button>
                     <button
                       @click="copyMessage(message.text)"
                       class="message-action-btn"
-                      title="Copy message to clipboard"
+                      title="Copy"
                     >
-                      <i class="copy-icon">📋</i>
+                      📋
                     </button>
                   </div>
                 </div>
               </div>
-              <!-- Loading indicator for streaming responses -->
               <div v-if="geminiLoading" class="chat-message ai-message">
                 <div class="message-avatar">
                   <span>🤖</span>
@@ -120,8 +125,8 @@
           <div class="chat-input-area">
             <textarea
               v-model="geminiQuestion"
-              placeholder="Type your message here..."
-              rows="2"
+              placeholder="Type your message..."
+              rows="1"
               class="chat-input"
               @keydown.enter.prevent="handleEnterKey"
             ></textarea>
@@ -130,18 +135,17 @@
                 @click="toggleVoiceInput"
                 :class="['voice-input-btn', { active: isListening }]"
                 :disabled="!isSpeechRecognitionAvailable"
-                :title="isSpeechRecognitionAvailable ? 'Click to use voice input' : 'Speech recognition not available in your browser'"
+                :title="isSpeechRecognitionAvailable ? 'Voice input' : 'Not available'"
               >
-                <span v-if="isListening">🎤</span>
-                <span v-else>🎤</span>
+                🎤
               </button>
               <button
                 @click="askGeminiAI"
                 :disabled="!geminiQuestion.trim() || geminiLoading"
                 class="send-message-btn"
+                title="Send message"
               >
-                <span v-if="geminiLoading">⏳</span>
-                <span v-else>📤</span>
+                ➤
               </button>
             </div>
           </div>
@@ -564,8 +568,21 @@ export default {
     // Chat functionality
     const formatMessageText = (text) => {
       if (!text) return '';
+      // Escape HTML to prevent XSS attacks
+      let formatted = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      
+      // Convert markdown formatting
+      // **text** for bold titles/headings
+      formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      // *text* for emphasis/bold
+      formatted = formatted.replace(/\*(.+?)\*/g, '<em>$1</em>');
       // Convert line breaks to <br> for HTML display
-      return text.replace(/\n/g, '<br>');
+      formatted = formatted.replace(/\n/g, '<br>');
+      
+      return formatted;
     }
     const handleEnterKey = (event) => {
       // Only proceed if not Shift+Enter and there's content to send
@@ -1008,35 +1025,52 @@ export default {
 }
 .gemini-panel {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 16px;
+  border-radius: 20px;
   padding: 1.5rem;
   margin-top: 1rem;
   border: none;
   display: flex;
   flex-direction: column;
-  height: 600px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  height: 550px;
+  box-shadow: 0 15px 40px rgba(102, 126, 234, 0.3);
 }
-.gemini-panel h3 {
+.gemini-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.gemini-header-icon {
+  width: 44px;
+  height: 44px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  backdrop-filter: blur(10px);
+}
+.gemini-header-text h3 {
   color: white;
-  margin-bottom: 0.5rem;
+  margin: 0;
   font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.3px;
 }
 .gemini-intro {
-  margin-bottom: 1rem;
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.9);
+  margin: 0.125rem 0 0 0;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.75);
 }
 /* Chat container styles */
 .chat-container {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
   margin-bottom: 1rem;
-  border-radius: 12px;
-  background-color: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.1);
-  height: 100%;
+  border-radius: 16px;
+  background-color: #f8f9fb;
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.08);
   display: flex;
   flex-direction: column;
 }
@@ -1046,40 +1080,57 @@ export default {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #666;
   text-align: center;
   padding: 2rem;
 }
+.empty-chat-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+  opacity: 0.6;
+}
+.empty-chat-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #444;
+  margin: 0 0 0.5rem 0;
+}
+.empty-chat-subtitle {
+  font-size: 0.85rem;
+  color: #888;
+  margin: 0;
+  line-height: 1.5;
+  max-width: 280px;
+}
 .chat-messages {
-  padding: 1.5rem;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
   overflow-y: auto;
+  flex: 1;
 }
 .chat-messages::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
 }
 .chat-messages::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 3px;
+  background: transparent;
 }
 .chat-messages::-webkit-scrollbar-thumb {
-  background: rgba(102, 126, 234, 0.3);
-  border-radius: 3px;
+  background: rgba(102, 126, 234, 0.25);
+  border-radius: 10px;
 }
 .chat-messages::-webkit-scrollbar-thumb:hover {
-  background: rgba(102, 126, 234, 0.5);
+  background: rgba(102, 126, 234, 0.4);
 }
 .chat-message {
   display: flex;
-  margin-bottom: 0.5rem;
-  animation: fadeIn 0.3s ease-in;
+  align-items: flex-start;
+  animation: slideIn 0.25s ease-out;
 }
-@keyframes fadeIn {
+@keyframes slideIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -1087,36 +1138,31 @@ export default {
   }
 }
 .message-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
-  margin-right: 0.75rem;
+  font-size: 1rem;
+  margin-right: 0.625rem;
   flex-shrink: 0;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 3px 10px rgba(102, 126, 234, 0.3);
 }
 .user-message .message-avatar {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
   order: 2;
   margin-right: 0;
-  margin-left: 0.75rem;
+  margin-left: 0.625rem;
 }
 .message-bubble {
   position: relative;
-  padding: 1rem 1.25rem;
-  border-radius: 20px;
-  max-width: 70%;
+  padding: 0.875rem 1rem;
+  border-radius: 16px;
+  max-width: 85%;
   word-break: break-word;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s ease;
-}
-.message-bubble:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 .user-message {
   justify-content: flex-end;
@@ -1128,66 +1174,98 @@ export default {
 }
 .ai-message .message-bubble {
   background: white;
-  color: #333;
+  color: #2d3748;
   border-bottom-left-radius: 4px;
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.04);
 }
 .message-text {
-  line-height: 1.5;
+  line-height: 1.6;
+  font-size: 0.9rem;
+}
+.message-text strong {
+  font-weight: 700;
   font-size: 0.95rem;
+  display: block;
+  margin: 0.75rem 0 0.4rem 0;
+  color: #1a202c;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.15);
+  padding-bottom: 0.3rem;
+}
+.message-text strong:first-child {
+  margin-top: 0;
+}
+.user-message .message-text strong {
+  color: #fff;
+  border-bottom-color: rgba(255, 255, 255, 0.2);
+}
+.message-text em {
+  font-style: normal;
+  font-weight: 600;
+  color: #667eea;
+  background: rgba(102, 126, 234, 0.08);
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+}
+.user-message .message-text em {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
 }
 .message-actions {
   display: flex;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
+  gap: 0.375rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
   justify-content: flex-end;
 }
 .message-action-btn {
-  background: rgba(0, 0, 0, 0.05);
+  background: transparent;
   border: none;
   cursor: pointer;
-  font-size: 0.9rem;
-  padding: 0.4rem 0.6rem;
-  border-radius: 8px;
-  transition: all 0.2s;
-  opacity: 0.7;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  transition: all 0.15s;
+  opacity: 0.5;
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.2rem;
 }
 .message-action-btn:hover {
   opacity: 1;
   background: rgba(102, 126, 234, 0.1);
-  transform: translateY(-1px);
 }
 .typing-indicator {
   display: flex;
   align-items: center;
-  padding: 0.75rem 1.25rem;
-  gap: 0.4rem;
+  padding: 0.75rem 1rem;
+  gap: 0.35rem;
   background: white;
-  border-radius: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  max-width: 80px;
+  border-radius: 16px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  max-width: 70px;
+  border: 1px solid rgba(0, 0, 0, 0.04);
 }
 .dot {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 50%;
-  animation: pulse 1.5s infinite;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+.dot:nth-child(1) {
+  animation-delay: -0.32s;
 }
 .dot:nth-child(2) {
-  animation-delay: 0.3s;
+  animation-delay: -0.16s;
 }
-.dot:nth-child(3) {
-  animation-delay: 0.6s;
-}
-@keyframes pulse {
-  0%, 100% {
-    opacity: 0.3;
+@keyframes bounce {
+  0%, 80%, 100% {
+    transform: scale(0.6);
+    opacity: 0.4;
   }
-  50% {
+  40% {
+    transform: scale(1);
     opacity: 1;
   }
 }
@@ -1413,92 +1491,95 @@ export default {
 /* Chat input area styles */
 .chat-input-area {
   display: flex;
-  gap: 1rem;
-  padding: 1rem;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
   backdrop-filter: blur(10px);
+  align-items: center;
 }
 .chat-input {
   flex: 1;
-  background: rgba(255, 255, 255, 0.9);
+  background: white;
   border: none;
   border-radius: 12px;
   padding: 0.75rem 1rem;
   font-family: inherit;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   resize: none;
   outline: none;
   transition: all 0.2s;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  min-height: 44px;
+  max-height: 100px;
 }
 .chat-input:focus {
-  background: white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 .chat-input::placeholder {
-  color: #999;
+  color: #aaa;
 }
 .chat-controls {
   display: flex;
   gap: 0.5rem;
-  align-items: flex-end;
+  align-items: center;
 }
 .voice-input-btn,
 .send-message-btn {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
   border: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   cursor: pointer;
   transition: all 0.2s;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
 }
 .voice-input-btn {
   background: white;
   color: #667eea;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 .voice-input-btn:hover:not(:disabled) {
-  background: #f0f0f0;
-  transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: #f5f5f5;
+  transform: translateY(-1px);
 }
 .voice-input-btn.active {
-  background: #667eea;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  animation: recording 1.5s ease-in-out infinite;
+  animation: pulse-ring 1.5s ease-in-out infinite;
 }
-@keyframes recording {
+@keyframes pulse-ring {
   0% {
-    box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7);
+    box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.6);
   }
   70% {
-    box-shadow: 0 0 0 10px rgba(102, 126, 234, 0);
+    box-shadow: 0 0 0 8px rgba(102, 126, 234, 0);
   }
   100% {
     box-shadow: 0 0 0 0 rgba(102, 126, 234, 0);
   }
 }
 .voice-input-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 .send-message-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
   color: white;
+  box-shadow: 0 3px 10px rgba(17, 153, 142, 0.3);
 }
 .send-message-btn:hover:not(:disabled) {
-  transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 5px 15px rgba(17, 153, 142, 0.4);
 }
 .send-message-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
   background: #ccc;
+  box-shadow: none;
 }
 </style>

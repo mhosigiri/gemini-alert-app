@@ -1,6 +1,6 @@
 import { Loader } from '@googlemaps/js-api-loader';
-import { ref, onValue } from 'firebase/database';
-import { rtdb, auth } from '../firebase';
+import { auth } from '../firebase';
+import { getCurrentLocation, getNearestUsers } from './locationService';
 // Cache for Google Maps API
 let googleMapsApi = null;
 // Google Maps API key from environment
@@ -16,7 +16,6 @@ let map = null;
 let markers = [];
 let currentLocationMarker = null;
 let locationCircle = null;
-let userListeners = [];
 // Track if map has been initialized
 let mapInitialized = false;
 let loaderPromise = null;
@@ -315,74 +314,56 @@ export const showNearbyUsers = async () => {
     }
     // Clear existing markers
     clearMarkers();
-    // Clear existing listeners
-    userListeners.forEach(unsubscribe => unsubscribe());
-    userListeners = [];
-    // Subscribe to user locations in Realtime Database
-    const locationsRef = ref(rtdb, 'locations');
-    const unsubscribe = onValue(locationsRef, (snapshot) => {
-      if (!map || !mapInitialized) {
+    const currentPosition = await getCurrentLocation();
+    const nearestUsers = await getNearestUsers(
+      currentPosition.coords.latitude,
+      currentPosition.coords.longitude,
+      25
+    );
+    nearestUsers.forEach((user) => {
+      if (!user.latitude || !user.longitude) {
         return;
       }
-      const locations = snapshot.val();
-      if (!locations) return;
-      // Clear existing markers
-      clearMarkers();
-      // Add marker for each user
-      Object.entries(locations).forEach(([userId, data]) => {
-        // Skip current user
-        if (userId === auth.currentUser.uid) return;
-        const { latitude, longitude, displayName, timestamp } = data;
-        if (!latitude || !longitude) return;
-        // Check if location update is recent (within the last 30 minutes)
-        const isRecent = (Date.now() - timestamp) < 30 * 60 * 1000;
-        if (!isRecent) return;
-        const position = { lat: latitude, lng: longitude };
-        try {
-          // Create marker for user
-          let marker;
-          if (googleMapsApi.maps.marker && googleMapsApi.maps.marker.AdvancedMarkerElement) {
-            // Use advanced marker if available
-            marker = new googleMapsApi.maps.marker.AdvancedMarkerElement({
-              position,
-              map,
-              title: displayName || 'User',
-              gmpDraggable: false
-            });
-          } else {
-            // Fallback to regular marker
-            marker = new googleMapsApi.maps.Marker({
-              position,
-              map,
-              title: displayName || 'User',
-              icon: {
-                path: googleMapsApi.maps.SymbolPath.CIRCLE,
-                scale: 8,
-                fillColor: '#34A853',
-                fillOpacity: 0.8,
-                strokeColor: '#FFFFFF',
-                strokeWeight: 2
-              }
-            });
-          }
-          // Add click listener to marker
-          const infoWindow = new googleMapsApi.maps.InfoWindow({
-            content: `
-              <div>
-                <h3>${displayName || 'User'}</h3>
-                <p>Last seen: ${new Date(timestamp).toLocaleString()}</p>
-              </div>
-            `
+      const position = { lat: user.latitude, lng: user.longitude };
+      try {
+        let marker;
+        if (googleMapsApi.maps.marker && googleMapsApi.maps.marker.AdvancedMarkerElement) {
+          marker = new googleMapsApi.maps.marker.AdvancedMarkerElement({
+            position,
+            map,
+            title: user.displayName || 'User',
+            gmpDraggable: false
           });
-          marker.addListener('click', () => {
-            infoWindow.open(map, marker);
+        } else {
+          marker = new googleMapsApi.maps.Marker({
+            position,
+            map,
+            title: user.displayName || 'User',
+            icon: {
+              path: googleMapsApi.maps.SymbolPath.CIRCLE,
+              scale: 8,
+              fillColor: '#34A853',
+              fillOpacity: 0.8,
+              strokeColor: '#FFFFFF',
+              strokeWeight: 2
+            }
           });
-          markers.push(marker);
-        } catch (markerError) {
         }
-      });
+        const infoWindow = new googleMapsApi.maps.InfoWindow({
+          content: `
+            <div>
+              <h3>${user.displayName || 'User'}</h3>
+              <p>Distance: ${user.distance_km?.toFixed?.(2) ?? ''} km</p>
+            </div>
+          `
+        });
+        marker.addListener('click', () => {
+          infoWindow.open(map, marker);
+        });
+        markers.push(marker);
+      } catch (markerError) {
+      }
     });
-    userListeners.push(unsubscribe);
     return markers.length;
   } catch (error) {
     return 0; // Continue without throwing
@@ -516,14 +497,6 @@ export const cleanupMap = () => {
       }
       locationCircle = null;
     }
-    // Remove listeners
-    userListeners.forEach(unsubscribe => {
-      try {
-        unsubscribe();
-      } catch (error) {
-      }
-    });
-    userListeners = [];
     // Reset map state
     map = null;
     mapInitialized = false;

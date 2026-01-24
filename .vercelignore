@@ -1,0 +1,46 @@
+# Ignore local development files
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Ignore local environment files
+.env
+.env.local
+.env.*.local
+serviceAccountKey.json
+
+# Ignore node modules (will be installed during build)
+node_modules/
+
+# Ignore build artifacts
+frontend/dist/
+*.log
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Ignore git
+.git/
+.gitignore
+
+# Ignore documentation (optional, but reduces deployment size)
+*.md
+!README.md
+
+# Ignore test files
+*.test.js
+*.spec.js
+__tests__/
+tests/
+
+# Ignore config examples
+config/
+

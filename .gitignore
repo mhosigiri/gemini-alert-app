@@ -1,8 +1,17 @@
 # Dependencies
+frontend/node_modules/
 node_modules/
 venv/
+.venv/
 __pycache__/
 *.pyc
+
+# Gotta make sure
+frontend/node_modules/
+backend/.venv/
+backend/__pycache__/
+backend/.env
+frontend/.env
 
 # Environment files
 .env
@@ -48,9 +57,14 @@ pnpm-debug.log*
 *.sw?
 
 # Frontend artifacts
-gemini-frontend/dist/
-gemini-frontend/node_modules/
+frontend/dist/
+frontend/node_modules/
 
 # Backend runtime
 *.db
 *.sqlite
+
+backend/gemini-alert-app-firebase-adminsdk-fbsvc-7d32f19d17.json
+backend/.env
+backend/.venv/
+backend/__pycache__/

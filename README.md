@@ -1,6 +1,6 @@
 # Gemini Alert
 
-Gemini Alert is a real-time emergency assistance platform. Users can broadcast distress alerts, see nearby helpers on a live map, and receive guidance from a Gemini-powered assistant. The project is split into a Vue 3 web client and a Flask backend that proxies Gemini API calls and persists data in Firebase services.
+Gemini Alert is a real-time emergency assistance platform. Users can broadcast distress alerts, see nearby helpers on a live map, and receive guidance from a Groq-hosted AI assistant. The project is split into a Vue 3 web client and a Flask backend that proxies Groq API calls and persists data in Firebase services.
 
 ---
 
@@ -8,45 +8,54 @@ Gemini Alert is a real-time emergency assistance platform. Users can broadcast d
 
 | Layer     | Technology                                             | Responsibilities |
 |-----------|---------------------------------------------------------|------------------|
-| Frontend  | Vue 3, Firebase Web SDK, Google Maps JavaScript API     | Authentication, live map, SOS dashboard, Gemini chat |
-| Backend   | Flask, Firebase Admin SDK, Google Generative AI SDK     | REST/SSE endpoints, Gemini proxy, Firebase writes |
-| Data      | Firebase Authentication, Firestore, Realtime Database   | User identity, alert storage, location streaming |
+| Frontend  | Vue 3, Firebase Web SDK, Google Maps JavaScript API     | Authentication, live map, SOS dashboard, AI chat UI |
+| Backend   | Flask, Firebase Admin SDK, Groq SDK                    | REST/SSE endpoints, Groq proxy, Firebase writes |
+| Data      | Firebase Authentication & Firestore                     | User identity, alerts, chat, and location history |
 
 ---
 
 ## Requirements
 
-- Python 3.14 (or >= 3.10 compatible with `google-generativeai`)
+- Python 3.14 (or >= 3.10 compatible with `groq`)
 - Node.js 18+ (tested with Node 20/24)
-- Firebase project with Authentication, Firestore, and Realtime Database enabled
+- Firebase project with Authentication and Firestore enabled
 - Google Maps JavaScript API key (with proper HTTP referrer restrictions)
-- Gemini API key with access to `models/gemini-2.5-flash`
+- Groq API key
 
 ---
 
 ## Environment Configuration
 
-Templates are provided in `config/backend.env.example` and `config/frontend.env.example`.
+Create `.env` files manually before running the project:
 
 ```bash
-# Backend
-cp config/backend.env.example gemini-backend/.env
+# Backend (.env)
+FLASK_ENV=development
+PORT=5001
+GROQ_API_KEY=your-groq-key
+# Optional overrides
+# GROQ_MODEL=gemma2-9b-it
+# GROQ_TEMPERATURE=0.4
+# GROQ_TOP_P=0.9
+# GROQ_MAX_TOKENS=1024
+FIREBASE_SERVICE_ACCOUNT_KEY_PATH=/absolute/path/to/serviceAccountKey.json
+# Optional: inline JSON alternative
+# FIREBASE_SERVICE_ACCOUNT_KEY={"type":"service_account",...}
+# Optional: comma-separated origins for CORS
+# ALLOWED_ORIGINS=http://localhost:8080,https://your-domain.com
 
-# Frontend
-cp config/frontend.env.example gemini-frontend/.env.local
+# Frontend (.env.local)
+VUE_APP_API_BASE_URL=http://localhost:5001
+VUE_APP_FIREBASE_API_KEY=...
+VUE_APP_FIREBASE_AUTH_DOMAIN=...
+VUE_APP_FIREBASE_PROJECT_ID=...
+VUE_APP_FIREBASE_STORAGE_BUCKET=...
+VUE_APP_FIREBASE_MESSAGING_SENDER_ID=...
+VUE_APP_FIREBASE_APP_ID=...
+VUE_APP_FIREBASE_MEASUREMENT_ID=...
+VUE_APP_GOOGLE_MAPS_API_KEY=...
+VUE_APP_GOOGLE_MAPS_MAP_ID=
 ```
-
-**Backend highlights**
-
-- `GEMINI_API_KEY` – required for Gemini features
-- `FIREBASE_SERVICE_ACCOUNT_KEY_PATH` **or** `FIREBASE_SERVICE_ACCOUNT_KEY` – Admin SDK credentials
-- `FIREBASE_DATABASE_URL` – required for realtime location + alerts
-
-**Frontend highlights**
-
-- `VUE_APP_API_BASE_URL` – Backend origin (`http://localhost:5001` for dev)
-- `VUE_APP_GOOGLE_MAPS_API_KEY` (+ optional `VUE_APP_GOOGLE_MAPS_MAP_ID`)
-- `VUE_APP_FIREBASE_*` – values from Firebase project settings
 
 > ⚠️ **Secrets**: Never commit `.env*` files or `serviceAccountKey.json`. Load secrets from environment variables in production.
 
@@ -58,35 +67,33 @@ cp config/frontend.env.example gemini-frontend/.env.local
 
 ```bash
 # Backend
-cd gemini-backend
-python -m venv ../.venv-backend
-source ../.venv-backend/bin/activate   # Windows: ..\.venv-backend\Scripts\activate
+cd backend
+python -m venv ../venv
+source ../venv/bin/activate   # Windows: ..\venv\Scripts\activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
 # Frontend
-cd ../gemini-frontend
+cd ../frontend
 npm install
 ```
 
-### 2. Run the backend
+### 2. Run the application
 
 ```bash
-cd ../gemini-backend
-source ../.venv-backend/bin/activate
+# Terminal 1 - Backend
+cd backend
+source ../venv/bin/activate
 python app.py
 # Flask serves on http://localhost:5001
-```
 
-### 3. Run the frontend
-
-```bash
-cd ../gemini-frontend
+# Terminal 2 - Frontend
+cd frontend
 npm run dev
 # Vue dev server runs on http://localhost:8080
 ```
 
-> The frontend proxies Gemini calls to the backend (`VUE_APP_API_BASE_URL`). Ensure both services are running for full functionality.
+> The frontend proxies AI chat calls to the backend (`VUE_APP_API_BASE_URL`). Ensure both services are running for full functionality.
 
 ---
 
@@ -95,15 +102,15 @@ npm run dev
 ### Backend (Flask)
 
 - Recommended command: `gunicorn app:app --bind 0.0.0.0:5001 --workers 2`
-- Set environment variables in your hosting provider (`GEMINI_API_KEY`, `FIREBASE_DATABASE_URL`, `FIREBASE_SERVICE_ACCOUNT_KEY*`, etc.)
-- Sample Vercel configuration is located at `gemini-backend/vercel.json`
+- Set environment variables in your hosting provider (`GROQ_API_KEY`, `FIREBASE_SERVICE_ACCOUNT_KEY*`, `ALLOWED_ORIGINS`, etc.)
+- Sample Vercel configuration is located at `vercel.json` in the project root
 
 ### Frontend (Vue)
 
 ```bash
-cd gemini-frontend
+cd frontend
 npm run build:prod
-# Output emitted to gemini-frontend/dist/
+# Output emitted to frontend/dist/
 ```
 
 - Deploy `dist/` to static hosting (Vercel, Firebase Hosting, Netlify, S3, etc.)
@@ -114,9 +121,8 @@ npm run build:prod
 
 | Variable | Description |
 |----------|-------------|
-| `GEMINI_API_KEY` | Google Generative AI API key |
+| `GROQ_API_KEY` | Groq API key |
 | `FIREBASE_SERVICE_ACCOUNT_KEY*` | Admin SDK credentials for backend |
-| `FIREBASE_DATABASE_URL` | Realtime Database root URL |
 | `VUE_APP_FIREBASE_*` | Web SDK config |
 | `VUE_APP_GOOGLE_MAPS_API_KEY` | Must include production domains in HTTP referrers |
 | `VUE_APP_API_BASE_URL` | HTTPS endpoint of the backend |
@@ -130,17 +136,19 @@ npm run build:prod
 - [ ] Confirm `.env` values exist in your hosting provider
 - [ ] Update Google Maps API key restrictions for localhost + production domains
 - [ ] Verify Firebase security rules meet production requirements
-- [ ] Review Gemini API quota and enable billing if needed
+- [ ] Verify Groq API quotas/billing
 
 ---
 
 ## Key Backend Endpoints
 
-- `POST /ask` – Gemini completion via REST
-- `POST /ask-stream` – Gemini streaming responses (Server-Sent Events)
+- `POST /ask` – Groq completion via REST
+- `POST /ask-stream` – Groq streaming responses (Server-Sent Events)
 - `GET /chats` – Fetch authenticated user chat history
-- `POST /api/nearest-users` – Find nearby users from Realtime Database
+- `POST /api/nearest-users` – Find nearby users using Firestore location snapshots
 - `POST /api/send-sos` – Broadcast SOS alert to nearby helpers
+- `POST /api/alerts/nearby` – Retrieve active alerts near the user
+- `POST /api/alerts/<alertId>/respond` – Record assistance responses
 
 ---
 
