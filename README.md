@@ -2,6 +2,7 @@
 
 Gemini Alert is a real-time emergency assistance platform. Users can broadcast distress alerts, see nearby helpers on a live map, and receive guidance from a Groq-hosted AI assistant. The project is split into a Vue 3 web client and a Flask backend that proxies Groq API calls and persists data in Firebase services.
 
+A better and more robust version for Mobile phones coming soon. Mobile versions need to be able to have kernel level access to SOS mobile signals/distress signals. 
 ---
 
 ## Architecture Overview
@@ -27,31 +28,6 @@ Gemini Alert is a real-time emergency assistance platform. Users can broadcast d
 ## Environment Configuration
 
 Copy the example files first, then fill in real values:
-
-```bash
-cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env.local
-```
-
-Backend values:
-
-```bash
-FLASK_ENV=development
-PORT=5001
-GROQ_API_KEY=your-groq-key
-GROQ_MODEL=gemma2-9b-it
-GROQ_TEMPERATURE=0.4
-GROQ_TOP_P=0.9
-GROQ_MAX_TOKENS=1024
-GROQ_EMOTION_MODEL=gemma2-9b-it
-GROQ_EMOTION_TEMPERATURE=0
-GROQ_EMOTION_TOP_P=0.1
-GROQ_EMOTION_MAX_TOKENS=256
-MAX_DIRECT_MESSAGE_LENGTH=4000
-FIREBASE_SERVICE_ACCOUNT_KEY_PATH=/absolute/path/to/firebase-admin.json
-FIREBASE_SERVICE_ACCOUNT_KEY=
-ALLOWED_ORIGINS=https://gemini-alert-app.vercel.app/
-```
 
 Frontend values:
 
@@ -148,22 +124,6 @@ npm run build:prod
 | `GROQ_EMOTION_TOP_P` | Defaults to `0.1` for deterministic emotion scoring |
 | `GROQ_EMOTION_MAX_TOKENS` | Caps the emotion-analysis response size |
 | `MAX_DIRECT_MESSAGE_LENGTH` | Maximum characters accepted per direct message |
-
----
-
-## Pre-Deployment Checklist
-
-- [ ] Remove local virtual environments (`rm -rf venv .venv-backend`) before committing
-- [ ] Ensure `serviceAccountKey.json` and any Firebase Admin JSON are excluded from version control
-- [ ] Ensure no Firebase messaging service worker with inline config is committed
-- [ ] Copy `backend/.env.example` to `backend/.env`
-- [ ] Copy `frontend/.env.example` to `frontend/.env.local`
-- [ ] Confirm the copied `.env` values exist in your hosting provider
-- [ ] Set `VUE_APP_API_BASE_URL` in Vercel to the deployed backend HTTPS URL
-- [ ] Set `ALLOWED_ORIGINS` in Google Cloud to the Vercel frontend origin(s)
-- [ ] Update Google Maps API key restrictions for localhost + production domains
-- [ ] Verify Firebase security rules meet production requirements
-- [ ] Verify Groq API quotas/billing
 
 ---
 
