@@ -1,37 +1,38 @@
 <template>
-  <div class="register-container">
-    <h1>Create an Account</h1>
-    <div v-if="error" class="error-message">{{ error }}</div>
-    <div v-if="successMessage" class="success-message">{{ successMessage }}</div>
-    <form @submit.prevent="register">
-      <div class="form-group">
-        <label for="first-name">First Name</label>
-        <input type="text" id="first-name" v-model="firstName" required>
-      </div>
-      <div class="form-group">
-        <label for="last-name">Last Name</label>
-        <input type="text" id="last-name" v-model="lastName" required>
-      </div>
-      <div class="form-group">
-        <label for="email">Email</label>
-        <input type="email" id="email" v-model="email" required>
-      </div>
-      <div class="form-group">
-        <label for="password">Password</label>
-        <input type="password" id="password" v-model="password" required minlength="6">
-        <small>Password must be at least 6 characters long</small>
-      </div>
-      <div class="buttons">
-        <button type="submit" :disabled="isLoading">
-          {{ isLoading ? 'Creating Account...' : 'Register' }}
+  <div class="auth-page">
+    <div class="auth-card">
+      <h1>Gemini Alert</h1>
+      <p class="auth-sub">Create your account</p>
+      <div v-if="error" class="msg-bad">{{ error }}</div>
+      <div v-if="successMessage" class="msg-good">{{ successMessage }}</div>
+      <form @submit.prevent="register">
+        <div class="field">
+          <label for="first-name">First Name</label>
+          <input type="text" id="first-name" v-model="firstName" required placeholder="Jane">
+        </div>
+        <div class="field">
+          <label for="last-name">Last Name</label>
+          <input type="text" id="last-name" v-model="lastName" required placeholder="Doe">
+        </div>
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" v-model="email" required placeholder="you@email.com">
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" v-model="password" required minlength="6" placeholder="6+ characters">
+        </div>
+        <button type="submit" :disabled="isLoading" class="btn-primary">
+          {{ isLoading ? 'Creating...' : 'Create Account' }}
         </button>
-      </div>
-    </form>
-    <p class="auth-link">
-      Already have an account? <router-link to="/login">Login here</router-link>
-    </p>
+      </form>
+      <p class="auth-link">
+        Have an account? <router-link to="/login">Sign in</router-link>
+      </p>
+    </div>
   </div>
 </template>
+
 <script>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -50,145 +51,41 @@ export default {
     const isLoading = ref(false)
     const router = useRouter()
     const register = async () => {
-      isLoading.value = true
-      error.value = null
-      successMessage.value = null
-      if (password.value.length < 6) {
-        error.value = 'Password must be at least 6 characters'
-        isLoading.value = false
-        return
-      }
+      isLoading.value = true; error.value = null; successMessage.value = null
+      if (password.value.length < 6) { error.value = 'Password must be at least 6 characters'; isLoading.value = false; return }
       try {
-        // Create user with email and password
         const userCredential = await createUserWithEmailAndPassword(auth, email.value, password.value)
         const user = userCredential.user
-        // Update profile with name
         const displayName = `${firstName.value} ${lastName.value}`.trim()
-        await updateProfile(user, {
-          displayName
-        })
-        // Ensure user is added to both Firestore and RTDB
-        try {
-          await ensureUserInDatabase(user, {
-            firstName: firstName.value,
-            lastName: lastName.value,
-            password: password.value
-          })
-        } catch (dbErr) {
-        }
+        await updateProfile(user, { displayName })
+        try { await ensureUserInDatabase(user, { firstName: firstName.value, lastName: lastName.value, password: password.value }) } catch (dbErr) { /* silent */ }
         router.push('/')
       } catch (err) {
-        if (err.code === 'auth/email-already-in-use') {
-          error.value = 'Email already in use'
-        } else {
-          error.value = 'Failed to create account: ' + (err.message || 'Unknown error')
-        }
-      } finally {
-        isLoading.value = false
-      }
+        if (err.code === 'auth/email-already-in-use') error.value = 'Email already in use'
+        else error.value = 'Failed to create account: ' + (err.message || 'Unknown error')
+      } finally { isLoading.value = false }
     }
-    return {
-      firstName,
-      lastName,
-      email,
-      password,
-      error,
-      successMessage,
-      isLoading,
-      register
-    }
+    return { firstName, lastName, email, password, error, successMessage, isLoading, register }
   }
 }
 </script>
+
 <style scoped>
-.register-container {
-  max-width: 400px;
-  margin: 40px auto;
-  padding: 20px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-h1 {
-  margin-top: 0;
-  color: #4285F4;
-}
-.form-group {
-  margin-bottom: 15px;
-  text-align: left;
-}
-label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: bold;
-}
-small {
-  display: block;
-  color: #666;
-  margin-top: 5px;
-}
-.error-message {
-  color: #f44336;
-  margin-bottom: 15px;
-  padding: 10px;
-  background-color: #ffebee;
-  border-radius: 4px;
-}
-.success-message {
-  color: #4CAF50;
-  margin-bottom: 15px;
-  padding: 10px;
-  background-color: #e8f5e9;
-  border-radius: 4px;
-}
-input {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 16px;
-}
-button {
-  width: 100%;
-  padding: 12px;
-  background-color: #4285F4;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: bold;
-  transition: background-color 0.3s;
-}
-button:hover:not(:disabled) {
-  background-color: #3367d6;
-}
-button:disabled {
-  background-color: #9bb8ea;
-  cursor: not-allowed;
-}
-.buttons {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.login-link {
-  margin-top: 15px;
-  color: #4285F4;
-  text-decoration: none;
-}
-.login-link:hover {
-  text-decoration: underline;
-}
-.demo-account {
-  margin-top: 25px;
-  padding-top: 15px;
-  border-top: 1px solid #eee;
-  text-align: center;
-}
-.test-account-btn {
-  background-color: #34A853;
-}
-.test-account-btn:hover:not(:disabled) {
-  background-color: #2e8f49;
-}
-</style> 
+.auth-page { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: var(--sp-md); }
+.auth-card { width: 100%; max-width: 380px; text-align: center; }
+h1 { font-size: var(--fs-xl); font-weight: 800; letter-spacing: -0.03em; margin-bottom: 0; }
+.auth-sub { color: var(--c-text-soft); font-size: var(--fs-sm); margin-bottom: var(--sp-lg); }
+.msg-bad { color: var(--c-bad); padding: var(--sp-sm) var(--sp-md); border-radius: var(--radius-pill); font-size: var(--fs-sm); margin-bottom: var(--sp-md); border: 1px solid var(--c-bad); }
+.msg-good { color: var(--c-good); padding: var(--sp-sm) var(--sp-md); border-radius: var(--radius-pill); font-size: var(--fs-sm); margin-bottom: var(--sp-md); border: 1px solid var(--c-good); }
+.field { margin-bottom: var(--sp-md); text-align: left; }
+.field label { display: block; margin-bottom: var(--sp-xs); font-size: var(--fs-sm); font-weight: 600; color: var(--c-text-soft); }
+.field input { width: 100%; padding: 0.65rem 1rem; border: 1px solid var(--c-border); border-radius: var(--radius-pill); font-size: var(--fs-base); background: var(--c-bg); color: var(--c-text); outline: none; transition: border-color 0.15s; }
+.field input:focus { border-color: var(--c-text); }
+.field input::placeholder { color: var(--c-text-soft); }
+.btn-primary { width: 100%; padding: 0.7rem; border: none; border-radius: var(--radius-pill); background: var(--c-text); color: var(--c-bg); font-size: var(--fs-base); font-weight: 700; transition: opacity 0.15s; margin-top: var(--sp-sm); }
+.btn-primary:hover:not(:disabled) { opacity: 0.8; }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.auth-link { margin-top: var(--sp-lg); font-size: var(--fs-sm); color: var(--c-text-soft); }
+.auth-link a { color: var(--c-text); font-weight: 600; text-decoration: none; }
+.auth-link a:hover { text-decoration: underline; }
+</style>

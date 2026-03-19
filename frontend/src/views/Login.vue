@@ -1,33 +1,35 @@
 <template>
-  <div class="login-container">
-    <h1>Login</h1>
-    <div v-if="error" class="error-message">{{ error }}</div>
-    <div v-if="successMessage" class="success-message">{{ successMessage }}</div>
-    <form @submit.prevent="login">
-      <div class="form-group">
-        <label for="email">Email</label>
-        <input type="email" id="email" v-model="email" required>
-      </div>
-      <div class="form-group">
-        <label for="password">Password</label>
-        <input type="password" id="password" v-model="password" required>
-      </div>
-      <div class="buttons">
-        <button type="submit" :disabled="isLoading">
-          {{ isLoading ? 'Logging in...' : 'Login' }}
+  <div class="auth-page">
+    <div class="auth-card">
+      <h1>Gemini Alert</h1>
+      <p class="auth-sub">Emergency Response System</p>
+      <div v-if="error" class="msg-bad">{{ error }}</div>
+      <div v-if="successMessage" class="msg-good">{{ successMessage }}</div>
+      <form @submit.prevent="login">
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" v-model="email" required placeholder="you@email.com">
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" v-model="password" required placeholder="••••••">
+        </div>
+        <button type="submit" :disabled="isLoading" class="btn-primary">
+          {{ isLoading ? 'Signing in...' : 'Sign In' }}
         </button>
-      </div>
-    </form>
-    <p class="auth-link">
-      Don't have an account? <router-link to="/register">Register here</router-link>
-    </p>
+      </form>
+      <p class="auth-link">
+        No account? <router-link to="/register">Register</router-link>
+      </p>
+    </div>
   </div>
 </template>
+
 <script>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { auth } from '../firebase'
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
+import { signInWithEmailAndPassword } from 'firebase/auth'
 import { ensureUserInDatabase } from '../services/userService'
 export default {
   name: 'LoginPage',
@@ -44,170 +46,35 @@ export default {
       successMessage.value = null
       try {
         const userCredential = await signInWithEmailAndPassword(auth, email.value, password.value)
-        // Ensure user exists in database but don't throw if it fails
-        try {
-          await ensureUserInDatabase(userCredential.user)
-        } catch (dbErr) {
-        }
+        try { await ensureUserInDatabase(userCredential.user) } catch (dbErr) { /* silent */ }
         router.push('/')
       } catch (err) {
-        if (err.code === 'auth/user-not-found') {
-          error.value = 'User not found. Please check your email or register.'
-        } else if (err.code === 'auth/wrong-password') {
-          error.value = 'Incorrect password. Please try again.'
-        } else {
-          error.value = 'Login failed: ' + (err.message || 'Unknown error')
-        }
-      } finally {
-        isLoading.value = false
-      }
+        if (err.code === 'auth/user-not-found') error.value = 'User not found. Please check your email or register.'
+        else if (err.code === 'auth/wrong-password') error.value = 'Incorrect password. Please try again.'
+        else error.value = 'Login failed: ' + (err.message || 'Unknown error')
+      } finally { isLoading.value = false }
     }
-    // Test account function
-    const useTestAccount = async () => {
-      isLoading.value = true
-      error.value = null
-      successMessage.value = null
-      const testEmail = 'test@example.com'
-      const testPassword = 'test123456'
-      try {
-        // Try to log in with test account
-        try {
-          const userCredential = await signInWithEmailAndPassword(auth, testEmail, testPassword)
-          try {
-            await ensureUserInDatabase(userCredential.user)
-          } catch (dbErr) {
-          }
-          router.push('/')
-          return
-        } catch (loginErr) {
-          // If login fails, try to create the test account
-          if (loginErr.code === 'auth/user-not-found') {
-            try {
-              const userCredential = await createUserWithEmailAndPassword(auth, testEmail, testPassword)
-              successMessage.value = 'Demo account created! Logging in...'
-              try {
-                await ensureUserInDatabase(userCredential.user)
-              } catch (dbErr) {
-              }
-              // Wait a moment then redirect
-              setTimeout(() => {
-                router.push('/')
-              }, 1500)
-              return
-            } catch (createErr) {
-              if (createErr.code === 'auth/email-already-in-use') {
-                // This shouldn't happen but handle it anyway
-                error.value = 'Test account exists but login failed. Please try again.'
-              } else {
-                throw createErr
-              }
-            }
-          } else {
-            throw loginErr
-          }
-        }
-      } catch (err) {
-        error.value = 'Failed to use demo account: ' + (err.message || 'Unknown error')
-      } finally {
-        isLoading.value = false
-      }
-    }
-    return {
-      email,
-      password,
-      error,
-      successMessage,
-      isLoading,
-      login,
-      useTestAccount
-    }
+    return { email, password, error, successMessage, isLoading, login }
   }
 }
 </script>
+
 <style scoped>
-.login-container {
-  max-width: 400px;
-  margin: 40px auto;
-  padding: 20px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-h1 {
-  margin-top: 0;
-  color: #4285F4;
-}
-.form-group {
-  margin-bottom: 15px;
-  text-align: left;
-}
-label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: bold;
-}
-.error-message {
-  color: #f44336;
-  margin-bottom: 15px;
-  padding: 10px;
-  background-color: #ffebee;
-  border-radius: 4px;
-}
-.success-message {
-  color: #4CAF50;
-  margin-bottom: 15px;
-  padding: 10px;
-  background-color: #e8f5e9;
-  border-radius: 4px;
-}
-input {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 16px;
-}
-button {
-  width: 100%;
-  padding: 12px;
-  background-color: #4285F4;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: bold;
-  transition: background-color 0.3s;
-}
-button:hover:not(:disabled) {
-  background-color: #3367d6;
-}
-button:disabled {
-  background-color: #9bb8ea;
-  cursor: not-allowed;
-}
-.buttons {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.register-link {
-  margin-top: 15px;
-  color: #4285F4;
-  text-decoration: none;
-}
-.register-link:hover {
-  text-decoration: underline;
-}
-.demo-account {
-  margin-top: 25px;
-  padding-top: 15px;
-  border-top: 1px solid #eee;
-  text-align: center;
-}
-.test-account-btn {
-  background-color: #34A853;
-}
-.test-account-btn:hover:not(:disabled) {
-  background-color: #2e8f49;
-}
-</style> 
+.auth-page { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: var(--sp-md); }
+.auth-card { width: 100%; max-width: 380px; text-align: center; }
+h1 { font-size: var(--fs-xl); font-weight: 800; letter-spacing: -0.03em; margin-bottom: 0; }
+.auth-sub { color: var(--c-text-soft); font-size: var(--fs-sm); margin-bottom: var(--sp-lg); }
+.msg-bad { color: var(--c-bad); padding: var(--sp-sm) var(--sp-md); border-radius: var(--radius-pill); font-size: var(--fs-sm); margin-bottom: var(--sp-md); border: 1px solid var(--c-bad); }
+.msg-good { color: var(--c-good); padding: var(--sp-sm) var(--sp-md); border-radius: var(--radius-pill); font-size: var(--fs-sm); margin-bottom: var(--sp-md); border: 1px solid var(--c-good); }
+.field { margin-bottom: var(--sp-md); text-align: left; }
+.field label { display: block; margin-bottom: var(--sp-xs); font-size: var(--fs-sm); font-weight: 600; color: var(--c-text-soft); }
+.field input { width: 100%; padding: 0.65rem 1rem; border: 1px solid var(--c-border); border-radius: var(--radius-pill); font-size: var(--fs-base); background: var(--c-bg); color: var(--c-text); outline: none; transition: border-color 0.15s; }
+.field input:focus { border-color: var(--c-text); }
+.field input::placeholder { color: var(--c-text-soft); }
+.btn-primary { width: 100%; padding: 0.7rem; border: none; border-radius: var(--radius-pill); background: var(--c-text); color: var(--c-bg); font-size: var(--fs-base); font-weight: 700; transition: opacity 0.15s; margin-top: var(--sp-sm); }
+.btn-primary:hover:not(:disabled) { opacity: 0.8; }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.auth-link { margin-top: var(--sp-lg); font-size: var(--fs-sm); color: var(--c-text-soft); }
+.auth-link a { color: var(--c-text); font-weight: 600; text-decoration: none; }
+.auth-link a:hover { text-decoration: underline; }
+</style>

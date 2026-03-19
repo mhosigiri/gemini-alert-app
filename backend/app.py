@@ -4,11 +4,12 @@ import json
 import os
 from dotenv import load_dotenv
 from functools import wraps
+import hashlib
 import time
 import logging
-from typing import Dict, Generator, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Generator, Iterable, List, Optional, Sequence, Tuple
 import firebase_admin
-from firebase_admin import auth, credentials, firestore as admin_firestore
+from firebase_admin import auth, credentials, firestore as admin_firestore, messaging
 from groq import Groq
 from datetime import datetime, timezone
 from werkzeug.security import generate_password_hash
@@ -39,9 +40,29 @@ GROQ_DEFAULT_MODEL = os.environ.get("GROQ_MODEL", "gemma2-9b-it")
 GROQ_DEFAULT_TEMPERATURE = float(os.environ.get("GROQ_TEMPERATURE", "0.4"))
 GROQ_DEFAULT_TOP_P = float(os.environ.get("GROQ_TOP_P", "0.9"))
 GROQ_DEFAULT_MAX_TOKENS = int(os.environ.get("GROQ_MAX_TOKENS", "1024"))
+GROQ_EMOTION_MODEL = os.environ.get("GROQ_EMOTION_MODEL", GROQ_DEFAULT_MODEL)
+GROQ_EMOTION_TEMPERATURE = float(os.environ.get("GROQ_EMOTION_TEMPERATURE", "0"))
+GROQ_EMOTION_TOP_P = float(os.environ.get("GROQ_EMOTION_TOP_P", "0.1"))
+GROQ_EMOTION_MAX_TOKENS = int(os.environ.get("GROQ_EMOTION_MAX_TOKENS", "256"))
+MAX_DIRECT_MESSAGE_LENGTH = int(os.environ.get("MAX_DIRECT_MESSAGE_LENGTH", "4000"))
+DEFAULT_CONVERSATION_LIMIT = int(os.environ.get("DEFAULT_CONVERSATION_LIMIT", "50"))
+DEFAULT_MESSAGE_LIMIT = int(os.environ.get("DEFAULT_MESSAGE_LIMIT", "50"))
 
 _groq_client: Optional[Groq] = None
 _groq_available: bool = False
+
+
+def _parse_allowed_origins(raw_value: Optional[str]) -> List[str]:
+    if not raw_value:
+        return []
+
+    origins: List[str] = []
+    for origin in raw_value.split(","):
+        normalized = origin.strip().rstrip("/")
+        if normalized:
+            origins.append(normalized)
+
+    return sorted(set(origins))
 
 
 def _normalise_content(content) -> str:
@@ -112,6 +133,673 @@ def _extract_json_payload(text: str) -> Tuple[Optional[dict], str]:
         return json.loads(raw), text.strip()
     except json.JSONDecodeError:
         return None, text.strip()
+
+
+def _timestamp_to_ms(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    if hasattr(value, "timestamp"):
+        try:
+            return int(value.timestamp() * 1000)
+        except Exception:
+            return None
+    return None
+
+
+def _stable_hash(value: str) -> str:
+    return hashlib.sha1(value.encode("utf-8")).hexdigest()
+
+
+def _normalize_participant_ids(participant_ids: Sequence[str]) -> List[str]:
+    normalized = []
+    for participant_id in participant_ids:
+        if not participant_id:
+            continue
+        normalized.append(str(participant_id))
+    return sorted(set(normalized))
+
+
+def _coerce_participant_ids(raw_participants: Any) -> List[str]:
+    if raw_participants is None:
+        return []
+    if isinstance(raw_participants, str):
+        return [raw_participants]
+    if isinstance(raw_participants, (list, tuple, set)):
+        return [str(participant_id) for participant_id in raw_participants if participant_id]
+    return [str(raw_participants)]
+
+
+def _conversation_key(participant_ids: Sequence[str]) -> str:
+    normalized = _normalize_participant_ids(participant_ids)
+    if len(normalized) < 2:
+        raise ValueError("At least two participants are required")
+    return _stable_hash("|".join(normalized))
+
+
+def _conversation_doc_ref(participant_ids: Sequence[str]):
+    if not db:
+        return None
+    return db.collection("conversations").document(_conversation_key(participant_ids))
+
+
+def _message_doc_payload(
+    sender_id: str,
+    sender_name: str,
+    text: str,
+    recipient_ids: Sequence[str],
+    *,
+    conversation_id: str,
+    analysis: Optional[Dict[str, Any]] = None,
+    source_alert_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {
+        "senderId": sender_id,
+        "senderName": sender_name,
+        "text": text,
+        "recipientIds": list(recipient_ids),
+        "conversationId": conversation_id,
+        "messageType": "text",
+        "timestamp": admin_firestore.SERVER_TIMESTAMP,
+    }
+    if analysis:
+        payload["emotionAnalysis"] = analysis
+    if source_alert_id:
+        payload["sourceAlertId"] = source_alert_id
+    return payload
+
+
+def _conversation_summary_from_snapshot(snapshot, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    if not snapshot or not snapshot.exists:
+        return None
+
+    data = snapshot.to_dict() or {}
+    participant_ids = _normalize_participant_ids(data.get("participants") or [])
+    participant_profiles = []
+    for participant_id in participant_ids:
+        profile = get_user_data(participant_id) or {}
+        participant_profiles.append(
+            {
+                "uid": participant_id,
+                "displayName": profile.get("displayName")
+                or profile.get("name")
+                or profile.get("Email")
+                or participant_id,
+                "photoURL": profile.get("photoURL"),
+            }
+        )
+
+    latest_emotion = data.get("latestEmotionAnalysis")
+    if isinstance(latest_emotion, dict):
+        latest_emotion = dict(latest_emotion)
+        analyzed_at = latest_emotion.get("analyzedAt")
+        latest_emotion["analyzedAt"] = _timestamp_to_ms(analyzed_at)
+
+    return {
+        "id": snapshot.id,
+        "conversationId": snapshot.id,
+        "participants": participant_ids,
+        "participantProfiles": participant_profiles,
+        "participantCount": len(participant_ids),
+        "createdBy": data.get("createdBy"),
+        "sourceAlertId": data.get("sourceAlertId"),
+        "status": data.get("status", "active"),
+        "lastMessage": data.get("lastMessage"),
+        "lastMessageSenderId": data.get("lastMessageSenderId"),
+        "lastMessageAt": _timestamp_to_ms(data.get("lastMessageAt")),
+        "updatedAt": _timestamp_to_ms(data.get("updatedAt")),
+        "createdAt": _timestamp_to_ms(data.get("createdAt")),
+        "latestEmotionAnalysis": latest_emotion,
+        "isMember": user_id in participant_ids if user_id else True,
+    }
+
+
+def _serialize_message_snapshot(snapshot) -> Dict[str, Any]:
+    data = snapshot.to_dict() or {}
+    emotion = data.get("emotionAnalysis")
+    if isinstance(emotion, dict):
+        emotion = dict(emotion)
+        emotion["analyzedAt"] = _timestamp_to_ms(emotion.get("analyzedAt"))
+    return {
+        "id": snapshot.id,
+        "messageId": snapshot.id,
+        "conversationId": data.get("conversationId"),
+        "senderId": data.get("senderId"),
+        "senderName": data.get("senderName"),
+        "recipientIds": data.get("recipientIds") or [],
+        "text": data.get("text"),
+        "messageType": data.get("messageType", "text"),
+        "timestamp": _timestamp_to_ms(data.get("timestamp")),
+        "sourceAlertId": data.get("sourceAlertId"),
+        "emotionAnalysis": emotion,
+    }
+
+
+def _serialize_emotion_analysis(analysis: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not isinstance(analysis, dict):
+        return None
+
+    serialized = dict(analysis)
+    serialized["analyzedAt"] = _timestamp_to_ms(serialized.get("analyzedAt"))
+    return serialized
+
+
+def _get_user_display_name(user_id: str) -> str:
+    profile = get_user_data(user_id) or {}
+    return (
+        profile.get("displayName")
+        or profile.get("name")
+        or profile.get("Email")
+        or user_id
+    )
+
+
+def _get_device_token_collection(user_id: str):
+    if not db:
+        return None
+    return db.collection("users").document(user_id).collection("deviceTokens")
+
+
+def _normalize_token_record(token_snapshot) -> Optional[Dict[str, Any]]:
+    if not token_snapshot or not token_snapshot.exists:
+        return None
+    data = token_snapshot.to_dict() or {}
+    token = data.get("token")
+    if not token:
+        return None
+    return {
+        "id": token_snapshot.id,
+        "token": token,
+        "platform": data.get("platform"),
+        "appVersion": data.get("appVersion"),
+        "deviceName": data.get("deviceName"),
+        "createdAt": _timestamp_to_ms(data.get("createdAt")),
+        "lastSeenAt": _timestamp_to_ms(data.get("lastSeenAt")),
+        "enabled": data.get("enabled", True),
+    }
+
+
+def _fcm_token_document_id(token: str) -> str:
+    return _stable_hash(token.strip())
+
+
+def _collect_device_tokens(user_id: str) -> List[Dict[str, Any]]:
+    token_collection = _get_device_token_collection(user_id)
+    if token_collection is None:
+        return []
+
+    tokens: List[Dict[str, Any]] = []
+    try:
+        for token_snapshot in token_collection.where("enabled", "==", True).stream():
+            normalized = _normalize_token_record(token_snapshot)
+            if normalized:
+                tokens.append(normalized)
+    except Exception as exc:
+        logger.warning("Failed to load device tokens for %s: %s", user_id, exc)
+    return tokens
+
+
+def _register_device_token(
+    user_id: str,
+    token: str,
+    *,
+    platform: Optional[str] = None,
+    app_version: Optional[str] = None,
+    device_name: Optional[str] = None,
+) -> Dict[str, Any]:
+    token_collection = _get_device_token_collection(user_id)
+    if token_collection is None:
+        raise RuntimeError("Firestore is not available")
+
+    token_doc_id = _fcm_token_document_id(token)
+    token_payload = {
+        "token": token.strip(),
+        "platform": platform,
+        "appVersion": app_version,
+        "deviceName": device_name,
+        "enabled": True,
+        "createdAt": admin_firestore.SERVER_TIMESTAMP,
+        "lastSeenAt": admin_firestore.SERVER_TIMESTAMP,
+    }
+    token_collection.document(token_doc_id).set(
+        {k: v for k, v in token_payload.items() if v is not None},
+        merge=True,
+    )
+    return {
+        "id": token_doc_id,
+        "token": token.strip(),
+        "platform": platform,
+        "appVersion": app_version,
+        "deviceName": device_name,
+    }
+
+
+def _remove_device_token(user_id: str, token: str) -> bool:
+    token_collection = _get_device_token_collection(user_id)
+    if token_collection is None:
+        return False
+
+    token_doc_id = _fcm_token_document_id(token)
+    token_collection.document(token_doc_id).delete()
+    return True
+
+
+def _is_invalid_fcm_token_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return any(
+        marker in text
+        for marker in (
+            "registration-token-not-registered",
+            "not-registered",
+            "invalid-registration-token",
+            "invalid argument",
+            "unregistered",
+        )
+    )
+
+
+def _send_push_notification_to_token(
+    token: str,
+    *,
+    title: str,
+    body: str,
+    data: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    payload = {
+        "title": title,
+        "body": body,
+    }
+    message_data = {
+        str(key): "" if value is None else str(value)
+        for key, value in (data or {}).items()
+    }
+    message = messaging.Message(
+        token=token,
+        notification=messaging.Notification(**payload),
+        data=message_data or None,
+    )
+    response = messaging.send(message)
+    return {"token": token, "messageId": response, "success": True}
+
+
+def _send_push_notification_to_user(
+    user_id: str,
+    *,
+    title: str,
+    body: str,
+    data: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    tokens = _collect_device_tokens(user_id)
+    if not tokens:
+        return {"userId": user_id, "sent": 0, "failed": 0, "tokens": []}
+
+    results = []
+    failed = 0
+    for token_record in tokens:
+        token = token_record.get("token")
+        if not token:
+            continue
+        try:
+            result = _send_push_notification_to_token(
+                token,
+                title=title,
+                body=body,
+                data=data,
+            )
+            results.append(result)
+        except Exception as exc:
+            failed += 1
+            logger.warning("Push notification failed for %s: %s", user_id, exc)
+            if _is_invalid_fcm_token_error(exc):
+                try:
+                    _remove_device_token(user_id, token)
+                except Exception as cleanup_error:
+                    logger.warning(
+                        "Failed to remove invalid FCM token for %s: %s",
+                        user_id,
+                        cleanup_error,
+                    )
+
+    return {
+        "userId": user_id,
+        "sent": len(results),
+        "failed": failed,
+        "tokens": results,
+    }
+
+
+def _send_push_notifications_to_users(
+    user_ids: Sequence[str],
+    *,
+    title: str,
+    body: str,
+    data: Optional[Dict[str, Any]] = None,
+    exclude_user_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    summaries = []
+    for user_id in _normalize_participant_ids(user_ids):
+        if exclude_user_id and user_id == exclude_user_id:
+            continue
+        summaries.append(
+            _send_push_notification_to_user(
+                user_id,
+                title=title,
+                body=body,
+                data=data,
+            )
+        )
+
+    return {
+        "recipientCount": len(summaries),
+        "sent": sum(summary["sent"] for summary in summaries),
+        "failed": sum(summary["failed"] for summary in summaries),
+        "results": summaries,
+    }
+
+
+def _heuristic_emotion_analysis(message_text: str, prior_scale: Optional[int] = None) -> Dict[str, Any]:
+    lowered = (message_text or "").lower()
+    distress_terms = {
+        "panic",
+        "scared",
+        "afraid",
+        "hurt",
+        "injured",
+        "alone",
+        "help",
+        "danger",
+        "emergency",
+        "stuck",
+        "bleeding",
+        "attack",
+        "threat",
+        "crying",
+        "terrified",
+        "can't breathe",
+    }
+    stability_terms = {
+        "ok",
+        "okay",
+        "safe",
+        "calm",
+        "steady",
+        "better",
+        "thank you",
+        "resolved",
+        "stable",
+        "managed",
+        "under control",
+    }
+
+    score = 3
+    for term in distress_terms:
+        if term in lowered:
+            score -= 1
+    for term in stability_terms:
+        if term in lowered:
+            score += 1
+
+    score = max(0, min(5, score))
+    direction = "steady"
+    if prior_scale is not None:
+        if score > prior_scale:
+            direction = "improving"
+        elif score < prior_scale:
+            direction = "worsening"
+
+    return {
+        "emotionScale": score,
+        "emotionLabel": [
+            "critical distress",
+            "severe distress",
+            "high stress",
+            "mixed / neutral",
+            "calm",
+            "stable / reassured",
+        ][score],
+        "direction": direction,
+        "confidence": 35,
+        "signals": [],
+        "recommendedTone": "calm, direct, supportive",
+        "summary": "Heuristic emotion analysis used because the LLM was unavailable.",
+        "model": "heuristic",
+    }
+
+
+def _parse_emotion_analysis(raw_analysis: Optional[Dict[str, Any]], message_text: str) -> Dict[str, Any]:
+    if not raw_analysis:
+        return _heuristic_emotion_analysis(message_text)
+
+    scale = raw_analysis.get("emotionScale", raw_analysis.get("scale", raw_analysis.get("score")))
+    try:
+        scale = int(scale)
+    except (TypeError, ValueError):
+        scale = _heuristic_emotion_analysis(message_text)["emotionScale"]
+    scale = max(0, min(5, scale))
+
+    result = {
+        "emotionScale": scale,
+        "emotionLabel": raw_analysis.get("emotionLabel") or raw_analysis.get("label") or raw_analysis.get("summary") or "neutral",
+        "direction": raw_analysis.get("direction") or raw_analysis.get("trend") or "steady",
+        "confidence": raw_analysis.get("confidence", 50),
+        "signals": raw_analysis.get("signals") or raw_analysis.get("observedSignals") or raw_analysis.get("indicators") or [],
+        "recommendedTone": raw_analysis.get("recommendedTone") or raw_analysis.get("responseTone") or "calm, direct, supportive",
+        "summary": raw_analysis.get("summary") or raw_analysis.get("analysis") or "",
+        "model": raw_analysis.get("model", GROQ_EMOTION_MODEL if groq_available() else "heuristic"),
+    }
+    return result
+
+
+def analyze_emotion_for_message(
+    message_text: str,
+    *,
+    prior_scale: Optional[int] = None,
+    context_messages: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    message_text = (message_text or "").strip()
+    if not message_text:
+        return _heuristic_emotion_analysis("", prior_scale)
+
+    if not groq_available():
+        return _heuristic_emotion_analysis(message_text, prior_scale)
+
+    context_lines = []
+    for entry in context_messages or []:
+        sender = entry.get("senderName") or entry.get("senderId") or "unknown"
+        text = (entry.get("text") or "").strip()
+        if text:
+            context_lines.append(f"- {sender}: {text}")
+
+    prompt = (
+        "You are a deterministic emotion classification engine for support and crisis conversations.\n"
+        "Return ONLY valid JSON with these keys:\n"
+        "- emotionScale: integer from 0 to 5\n"
+        "- emotionLabel: short label\n"
+        "- confidence: integer from 0 to 100\n"
+        "- signals: array of 3 to 6 short strings\n"
+        "- recommendedTone: short string describing how to respond\n"
+        "- summary: one short sentence\n"
+        "- riskFlag: boolean\n"
+        "- trendHint: one of improving, steady, worsening\n\n"
+        "Scale semantics:\n"
+        "0 = severe panic, crisis, or imminent distress.\n"
+        "1 = very distressed, overwhelmed, or unsafe.\n"
+        "2 = anxious, agitated, or emotionally unstable.\n"
+        "3 = neutral, mixed, or guarded.\n"
+        "4 = calm, reassured, or cooperative.\n"
+        "5 = very calm, stable, and grounded.\n\n"
+        f"Previous scale: {prior_scale if prior_scale is not None else 'unknown'}\n"
+        f"Current message: {message_text}\n"
+    )
+    if context_lines:
+        prompt += "Recent conversation context:\n" + "\n".join(context_lines) + "\n"
+
+    try:
+        analysis = groq_generate_chat(
+            prompt,
+            system_prompt=(
+                "You must answer with JSON only. Do not include markdown, code fences, or commentary."
+            ),
+            temperature=GROQ_EMOTION_TEMPERATURE,
+            top_p=GROQ_EMOTION_TOP_P,
+            max_tokens=GROQ_EMOTION_MAX_TOKENS,
+        )
+        payload, _ = _extract_json_payload(analysis.get("content") or "")
+        parsed = _parse_emotion_analysis(payload, message_text)
+    except Exception as exc:
+        logger.warning("Emotion analysis failed; falling back to heuristic analysis: %s", exc)
+        parsed = _heuristic_emotion_analysis(message_text, prior_scale)
+
+    if prior_scale is not None:
+        if parsed["emotionScale"] > prior_scale:
+            parsed["direction"] = "improving"
+        elif parsed["emotionScale"] < prior_scale:
+            parsed["direction"] = "worsening"
+        else:
+            parsed["direction"] = "steady"
+
+    parsed["priorScale"] = prior_scale
+    parsed["analyzedAt"] = admin_firestore.SERVER_TIMESTAMP
+    parsed["model"] = parsed.get("model") or (GROQ_EMOTION_MODEL if groq_available() else "heuristic")
+    return parsed
+
+
+def _build_conversation_document(
+    participant_ids: Sequence[str],
+    *,
+    created_by: str,
+    source_alert_id: Optional[str] = None,
+    conversation_type: str = "direct",
+) -> Dict[str, Any]:
+    participants = _normalize_participant_ids(participant_ids)
+    if len(participants) < 2:
+        raise ValueError("A conversation requires at least two participants")
+
+    return {
+        "conversationId": _conversation_key(participants),
+        "participants": participants,
+        "participantCount": len(participants),
+        "createdBy": created_by,
+        "conversationType": conversation_type,
+        "sourceAlertId": source_alert_id,
+        "status": "active",
+        "createdAt": admin_firestore.SERVER_TIMESTAMP,
+        "updatedAt": admin_firestore.SERVER_TIMESTAMP,
+    }
+
+
+def _ensure_conversation(
+    participant_ids: Sequence[str],
+    *,
+    created_by: str,
+    source_alert_id: Optional[str] = None,
+    conversation_type: str = "direct",
+) -> Dict[str, Any]:
+    if not db:
+        raise RuntimeError("Firestore is not available")
+
+    normalized = _normalize_participant_ids(participant_ids)
+    conversation_ref = _conversation_doc_ref(normalized)
+    if conversation_ref is None:
+        raise RuntimeError("Firestore is not available")
+
+    conversation_key = conversation_ref.id
+    snapshot = conversation_ref.get()
+    if snapshot.exists:
+        updates: Dict[str, Any] = {
+            "participants": normalized,
+            "participantCount": len(normalized),
+            "updatedAt": admin_firestore.SERVER_TIMESTAMP,
+        }
+        if source_alert_id:
+            updates["sourceAlertId"] = source_alert_id
+        conversation_ref.set(updates, merge=True)
+        return {
+            "conversationId": conversation_key,
+            "created": False,
+        }
+
+    conversation_ref.set(
+        _build_conversation_document(
+            normalized,
+            created_by=created_by,
+            source_alert_id=source_alert_id,
+            conversation_type=conversation_type,
+        )
+    )
+    return {
+        "conversationId": conversation_key,
+        "created": True,
+    }
+
+
+def _conversation_messages_ref(conversation_id: str):
+    if not db:
+        return None
+    return db.collection("conversations").document(conversation_id).collection("messages")
+
+
+def _load_conversation_snapshot(conversation_id: str):
+    if not db:
+        return None
+    return db.collection("conversations").document(conversation_id).get()
+
+
+def _get_latest_conversation_message(conversation_id: str) -> Optional[Dict[str, Any]]:
+    messages_ref = _conversation_messages_ref(conversation_id)
+    if messages_ref is None:
+        return None
+    try:
+        query = messages_ref.order_by("timestamp", direction=admin_firestore.Query.DESCENDING).limit(1)
+        for snapshot in query.stream():
+            return _serialize_message_snapshot(snapshot)
+    except Exception as exc:
+        logger.warning("Failed to load latest conversation message for %s: %s", conversation_id, exc)
+    return None
+
+
+def _append_conversation_message(
+    conversation_id: str,
+    *,
+    sender_id: str,
+    sender_name: str,
+    text: str,
+    recipient_ids: Sequence[str],
+    analysis: Optional[Dict[str, Any]] = None,
+    source_alert_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    messages_ref = _conversation_messages_ref(conversation_id)
+    if messages_ref is None:
+        raise RuntimeError("Firestore is not available")
+
+    payload = _message_doc_payload(
+        sender_id,
+        sender_name,
+        text,
+        recipient_ids,
+        conversation_id=conversation_id,
+        analysis=analysis,
+        source_alert_id=source_alert_id,
+    )
+    message_ref = messages_ref.document()
+    message_ref.set(payload)
+
+    conversation_ref = db.collection("conversations").document(conversation_id)
+    conversation_update: Dict[str, Any] = {
+        "lastMessage": text,
+        "lastMessageSenderId": sender_id,
+        "lastMessageAt": admin_firestore.SERVER_TIMESTAMP,
+        "updatedAt": admin_firestore.SERVER_TIMESTAMP,
+    }
+    if analysis:
+        conversation_update["latestEmotionAnalysis"] = analysis
+    if source_alert_id:
+        conversation_update["sourceAlertId"] = source_alert_id
+    conversation_ref.set(conversation_update, merge=True)
+
+    serialized = _serialize_message_snapshot(message_ref.get())
+    return serialized
 
 
 def groq_generate_chat(
@@ -292,16 +980,9 @@ def _load_firebase_credentials() -> credentials.Certificate:
         logger.info("Using Firebase service account key from FIREBASE_SERVICE_ACCOUNT_KEY environment variable.")
         return credentials.Certificate(json.loads(key_json))
 
-    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    default_path = os.path.join(repo_root, "serviceAccountKey.json")
-    if os.path.exists(default_path):
-        logger.info("Using Firebase service account key from serviceAccountKey.json.")
-        return credentials.Certificate(default_path)
-
     raise FileNotFoundError(
         "Firebase service account credentials not found. "
-        "Set FIREBASE_SERVICE_ACCOUNT_KEY_PATH, FIREBASE_SERVICE_ACCOUNT_KEY, "
-        "or provide serviceAccountKey.json at the repo root."
+        "Set FIREBASE_SERVICE_ACCOUNT_KEY_PATH or FIREBASE_SERVICE_ACCOUNT_KEY."
     )
 
 
@@ -350,22 +1031,19 @@ except Exception as exc:
 ENV = os.environ.get("FLASK_ENV", "development")
 DEBUG = ENV == "development"
 PORT = int(os.environ.get("PORT", 5001))
+ALLOWED_ORIGINS = _parse_allowed_origins(os.environ.get("ALLOWED_ORIGINS"))
 
 app = Flask(__name__)
 
-allowed_origins = [
-    origin.strip()
-    for origin in os.environ.get(
-        "ALLOWED_ORIGINS",
-        "http://localhost:8080,http://127.0.0.1:8080"
-    ).split(",")
-    if origin.strip()
-]
+if ALLOWED_ORIGINS:
+    logger.info("Configuring CORS for allowed origins: %s", ", ".join(ALLOWED_ORIGINS))
+else:
+    logger.warning("ALLOWED_ORIGINS is empty; cross-origin browser requests are disabled.")
 
 CORS(
     app,
-    resources={r"/*": {"origins": allowed_origins}},
-    supports_credentials=True,
+    resources={r"/*": {"origins": ALLOWED_ORIGINS}},
+    supports_credentials=False,
     allow_headers=["*"],
     expose_headers=["*"],
     methods=["GET", "POST", "OPTIONS"]
@@ -864,6 +1542,318 @@ def get_nearest_users():
         response_payload["analysis"] = ai_analysis
     return jsonify(response_payload)
 
+
+@app.route('/api/devices/register', methods=['POST'])
+@auth_required
+def register_device_token():
+    if db is None:
+        return jsonify({"error": "Firebase not configured"}), 503
+
+    payload = request.get_json(silent=True) or {}
+    token = (payload.get("token") or payload.get("deviceToken") or "").strip()
+    if not token:
+        return jsonify({"error": "Token is required"}), 400
+
+    try:
+        token_record = _register_device_token(
+            request.user["uid"],
+            token,
+            platform=payload.get("platform"),
+            app_version=payload.get("appVersion"),
+            device_name=payload.get("deviceName"),
+        )
+    except Exception as exc:
+        logger.error("Failed to register device token: %s", exc)
+        return jsonify({"error": "Failed to register device token"}), 500
+
+    return jsonify(
+        {
+            "status": "registered",
+            "deviceToken": token_record,
+        }
+    )
+
+
+@app.route('/api/devices/<path:token>', methods=['DELETE'])
+@auth_required
+def delete_device_token(token):
+    if db is None:
+        return jsonify({"error": "Firebase not configured"}), 503
+
+    if not token.strip():
+        return jsonify({"error": "Token is required"}), 400
+
+    try:
+        deleted = _remove_device_token(request.user["uid"], token)
+    except Exception as exc:
+        logger.error("Failed to delete device token: %s", exc)
+        return jsonify({"error": "Failed to delete device token"}), 500
+
+    return jsonify({"status": "deleted", "deleted": deleted})
+
+
+@app.route('/api/conversations', methods=['POST'])
+@auth_required
+def create_conversation():
+    if db is None:
+        return jsonify({"error": "Firebase not configured"}), 503
+
+    payload = request.get_json(silent=True) or {}
+    participant_ids = _coerce_participant_ids(payload.get("participantIds"))
+    if not participant_ids:
+        participant_ids = _coerce_participant_ids(payload.get("participantId"))
+
+    if not participant_ids:
+        return jsonify({"error": "participantId or participantIds is required"}), 400
+
+    normalized_participants = _normalize_participant_ids(participant_ids + [request.user["uid"]])
+    if len(normalized_participants) < 2:
+        return jsonify({"error": "At least two unique participants are required"}), 400
+
+    try:
+        result = _ensure_conversation(
+            normalized_participants,
+            created_by=request.user["uid"],
+            source_alert_id=payload.get("sourceAlertId"),
+            conversation_type=payload.get("conversationType") or "direct",
+        )
+        conversation_snapshot = _load_conversation_snapshot(result["conversationId"])
+        conversation = _conversation_summary_from_snapshot(conversation_snapshot, request.user["uid"])
+        latest_message = _get_latest_conversation_message(result["conversationId"])
+        if conversation is not None and latest_message is not None:
+            conversation["latestMessage"] = latest_message
+        return jsonify(
+            {
+                "status": "created" if result["created"] else "existing",
+                "conversation": conversation,
+            }
+        )
+    except Exception as exc:
+        logger.error("Failed to create conversation: %s", exc)
+        return jsonify({"error": "Failed to create conversation"}), 500
+
+
+@app.route('/api/conversations', methods=['GET'])
+@auth_required
+def list_conversations():
+    if db is None:
+        return jsonify({"conversations": []}), 503
+
+    user_id = request.user["uid"]
+    try:
+        limit = int(request.args.get("limit", DEFAULT_CONVERSATION_LIMIT))
+    except (TypeError, ValueError):
+        limit = DEFAULT_CONVERSATION_LIMIT
+    limit = max(1, min(limit, 100))
+
+    try:
+        conversation_query = db.collection("conversations").where(
+            "participants",
+            "array_contains",
+            user_id,
+        )
+        conversations = []
+        for snapshot in conversation_query.stream():
+            summary = _conversation_summary_from_snapshot(snapshot, user_id)
+            if not summary:
+                continue
+            latest_message = _get_latest_conversation_message(snapshot.id)
+            if latest_message is not None:
+                summary["latestMessage"] = latest_message
+            conversations.append(summary)
+
+        conversations.sort(
+            key=lambda item: item.get("updatedAt") or item.get("createdAt") or 0,
+            reverse=True,
+        )
+        return jsonify({"conversations": conversations[:limit]})
+    except Exception as exc:
+        logger.error("Failed to list conversations: %s", exc)
+        return jsonify({"error": "Failed to load conversations"}), 500
+
+
+@app.route('/api/conversations/<conversation_id>', methods=['GET'])
+@auth_required
+def get_conversation(conversation_id):
+    if db is None:
+        return jsonify({"error": "Firebase not configured"}), 503
+
+    snapshot = _load_conversation_snapshot(conversation_id)
+    if not snapshot.exists:
+        return jsonify({"error": "Conversation not found"}), 404
+
+    summary = _conversation_summary_from_snapshot(snapshot, request.user["uid"])
+    if not summary or request.user["uid"] not in summary.get("participants", []):
+        return jsonify({"error": "Conversation not found"}), 404
+
+    summary["latestMessage"] = _get_latest_conversation_message(conversation_id)
+    return jsonify({"conversation": summary})
+
+
+@app.route('/api/conversations/<conversation_id>/messages', methods=['GET'])
+@auth_required
+def list_conversation_messages(conversation_id):
+    if db is None:
+        return jsonify({"messages": []}), 503
+
+    snapshot = _load_conversation_snapshot(conversation_id)
+    if not snapshot.exists:
+        return jsonify({"error": "Conversation not found"}), 404
+
+    summary = _conversation_summary_from_snapshot(snapshot, request.user["uid"])
+    if not summary or request.user["uid"] not in summary.get("participants", []):
+        return jsonify({"error": "Conversation not found"}), 404
+
+    try:
+        limit = int(request.args.get("limit", DEFAULT_MESSAGE_LIMIT))
+    except (TypeError, ValueError):
+        limit = DEFAULT_MESSAGE_LIMIT
+    limit = max(1, min(limit, 100))
+
+    messages_ref = _conversation_messages_ref(conversation_id)
+    if messages_ref is None:
+        return jsonify({"error": "Conversation not found"}), 404
+
+    try:
+        message_docs = list(
+            messages_ref.order_by("timestamp", direction=admin_firestore.Query.ASCENDING).stream()
+        )
+        messages = [_serialize_message_snapshot(doc) for doc in message_docs[-limit:]]
+        return jsonify(
+            {
+                "conversation": summary,
+                "messages": messages,
+            }
+        )
+    except Exception as exc:
+        logger.error("Failed to load messages for conversation %s: %s", conversation_id, exc)
+        return jsonify({"error": "Failed to load conversation messages"}), 500
+
+
+@app.route('/api/conversations/<conversation_id>/messages', methods=['POST'])
+@auth_required
+def send_conversation_message(conversation_id):
+    if db is None:
+        return jsonify({"error": "Firebase not configured"}), 503
+
+    payload = request.get_json(silent=True) or {}
+    text = (payload.get("text") or payload.get("message") or "").strip()
+    if not text:
+        return jsonify({"error": "Message is required"}), 400
+    if len(text) > MAX_DIRECT_MESSAGE_LENGTH:
+        return jsonify({"error": "Message is too long"}), 400
+
+    snapshot = _load_conversation_snapshot(conversation_id)
+    if not snapshot.exists:
+        return jsonify({"error": "Conversation not found"}), 404
+
+    conversation = snapshot.to_dict() or {}
+    participants = _normalize_participant_ids(conversation.get("participants") or [])
+    current_user_id = request.user["uid"]
+    if current_user_id not in participants:
+        return jsonify({"error": "Conversation not found"}), 404
+
+    recipient_ids = [participant_id for participant_id in participants if participant_id != current_user_id]
+    if not recipient_ids:
+        return jsonify({"error": "No recipients available for this conversation"}), 400
+
+    prior_analysis = conversation.get("latestEmotionAnalysis")
+    prior_scale = None
+    if isinstance(prior_analysis, dict):
+        try:
+            prior_scale = int(prior_analysis.get("emotionScale"))
+        except (TypeError, ValueError):
+            prior_scale = None
+
+    context_messages = []
+    try:
+        previous_message_docs = list(
+            _conversation_messages_ref(conversation_id)
+            .order_by("timestamp", direction=admin_firestore.Query.ASCENDING)
+            .stream()
+        )
+        for message_doc in previous_message_docs[-4:]:
+            message_data = message_doc.to_dict() or {}
+            context_messages.append(
+                {
+                    "senderId": message_data.get("senderId"),
+                    "senderName": message_data.get("senderName"),
+                    "text": message_data.get("text"),
+                }
+            )
+    except Exception as exc:
+        logger.warning("Failed to load prior messages for emotion analysis: %s", exc)
+
+    analysis = analyze_emotion_for_message(
+        text,
+        prior_scale=prior_scale,
+        context_messages=context_messages,
+    )
+
+    try:
+        message = _append_conversation_message(
+            conversation_id,
+            sender_id=current_user_id,
+            sender_name=_get_user_display_name(current_user_id),
+            text=text,
+            recipient_ids=recipient_ids,
+            analysis=analysis,
+            source_alert_id=conversation.get("sourceAlertId"),
+        )
+    except Exception as exc:
+        logger.error("Failed to store conversation message: %s", exc)
+        return jsonify({"error": "Failed to send message"}), 500
+
+    notification_summary = _send_push_notifications_to_users(
+        recipient_ids,
+        title=f"New message from {_get_user_display_name(current_user_id)}",
+        body=text[:120],
+        data={
+            "type": "conversation_message",
+            "conversationId": conversation_id,
+            "messageId": message.get("id"),
+            "senderId": current_user_id,
+            "senderName": _get_user_display_name(current_user_id),
+        },
+        exclude_user_id=current_user_id,
+    )
+
+    return jsonify(
+        {
+            "status": "sent",
+            "conversationId": conversation_id,
+            "message": message,
+            "emotionAnalysis": analysis,
+            "notificationSummary": notification_summary,
+        }
+    )
+
+
+@app.route('/api/emotion/analyze', methods=['POST'])
+@auth_required
+def analyze_emotion():
+    payload = request.get_json(silent=True) or {}
+    text = (payload.get("text") or payload.get("message") or "").strip()
+    if not text:
+        return jsonify({"error": "Text is required"}), 400
+
+    prior_scale = payload.get("priorScale")
+    try:
+        prior_scale = int(prior_scale) if prior_scale is not None else None
+    except (TypeError, ValueError):
+        prior_scale = None
+
+    context_messages = payload.get("contextMessages") or []
+    if not isinstance(context_messages, list):
+        context_messages = []
+
+    analysis = analyze_emotion_for_message(
+        text,
+        prior_scale=prior_scale,
+        context_messages=context_messages,
+    )
+    return jsonify({"analysis": _serialize_emotion_analysis(analysis)})
+
 @app.route('/api/send-sos', methods=['POST'])
 @auth_required
 def send_sos():
@@ -974,11 +1964,26 @@ def send_sos():
         len(recipient_ids),
     )
 
+    notification_summary = _send_push_notifications_to_users(
+        recipient_ids,
+        title=f"New {emergency_type} SOS nearby",
+        body=message[:120],
+        data={
+            "type": "alert",
+            "alertId": alert_id,
+            "emergencyType": emergency_type,
+            "senderId": user_id,
+            "senderName": sender_name,
+        },
+        exclude_user_id=user_id,
+    )
+
     response_payload = {
         "status": "sos_sent",
         "recipients": recipient_ids,
         "alertId": alert_id,
         "message": "SOS alert sent to nearby users",
+        "notificationSummary": notification_summary,
     }
     if ai_insights:
         response_payload["aiInsights"] = {
@@ -1150,10 +2155,61 @@ def respond_to_alert(alert_id):
         logger.error("Failed to record response for alert %s: %s", alert_id, firestore_error)
         return jsonify({"error": "Failed to record response"}), 500
 
+    conversation_result = None
+    conversation_message = None
+    alert_owner_id = alert_snapshot.to_dict().get("userId")
+    if alert_owner_id and alert_owner_id != user_id:
+        try:
+            conversation_result = _ensure_conversation(
+                [alert_owner_id, user_id],
+                created_by=user_id,
+                source_alert_id=alert_id,
+                conversation_type="alert_followup",
+            )
+            conversation_message = _append_conversation_message(
+                conversation_result["conversationId"],
+                sender_id=user_id,
+                sender_name=user_name,
+                text=message,
+                recipient_ids=[alert_owner_id],
+                analysis=analyze_emotion_for_message(message),
+                source_alert_id=alert_id,
+            )
+            response_ref.set(
+                {
+                    "conversationId": conversation_result["conversationId"],
+                    "privateMessageId": conversation_message.get("id"),
+                },
+                merge=True,
+            )
+            push_summary = _send_push_notifications_to_users(
+                [alert_owner_id],
+                title=f"New response from {user_name}",
+                body=message[:120],
+                data={
+                    "type": "alert_response",
+                    "alertId": alert_id,
+                    "conversationId": conversation_result["conversationId"],
+                    "senderId": user_id,
+                    "senderName": user_name,
+                },
+                exclude_user_id=user_id,
+            )
+        except Exception as exc:
+            logger.warning("Failed to create private follow-up conversation: %s", exc)
+            conversation_result = None
+            conversation_message = None
+            push_summary = {"recipientCount": 0, "sent": 0, "failed": 0, "results": []}
+    else:
+        push_summary = {"recipientCount": 0, "sent": 0, "failed": 0, "results": []}
+
     return jsonify(
         {
             "status": "response_recorded",
             "responseId": response_ref.id,
+            "conversationId": conversation_result["conversationId"] if conversation_result else None,
+            "privateMessageId": conversation_message.get("id") if conversation_message else None,
+            "notificationSummary": push_summary,
         }
     )
 

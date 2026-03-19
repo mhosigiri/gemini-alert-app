@@ -25,6 +25,8 @@ frontend/.env
 serviceAccountKey.json
 firebase-debug.log
 .firebase/
+*firebase-adminsdk*.json
+gemini-alert-app-ad8ce1d7e5d0.json
 
 # Build files
 dist/
@@ -59,6 +61,7 @@ pnpm-debug.log*
 # Frontend artifacts
 frontend/dist/
 frontend/node_modules/
+frontend/public/firebase-messaging-sw.js
 
 # Backend runtime
 *.db

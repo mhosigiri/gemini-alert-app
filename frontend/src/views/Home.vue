@@ -1,1585 +1,731 @@
 <template>
-  <div class="app-container">
-    <header class="app-header">
-      <div class="logo">
-        <h1>Gemini Alert</h1>
-      </div>
-      <div class="user-info" v-if="user">
-        <span>{{ user.displayName || user.email }}</span>
-        <button @click="showPrivacySettings = true" class="settings-btn">⚙️ Privacy</button>
-        <button @click="logout" class="logout-btn">Sign Out</button>
+  <div class="page">
+    <!-- Header -->
+    <header class="hdr">
+      <span class="brand">Gemini Alert</span>
+      <div class="hdr-right" v-if="user">
+        <span class="user-name">{{ user.displayName || user.email }}</span>
+        <button @click="showPrivacySettings = true" class="btn-ghost" aria-label="Settings">Settings</button>
+        <button @click="logout" class="btn-ghost btn-out" aria-label="Sign out">Sign Out</button>
       </div>
     </header>
-    <main class="main-content">
-      <div class="alert-panel">
-        <h2>Send Emergency Alert</h2>
-        <p class="intro-text">Describe your situation in detail. This will be shared with people nearby who can help you.</p>
-        <div class="emergency-type">
-          <label>Emergency Type</label>
-          <div class="type-buttons">
-            <button
-              v-for="type in emergencyTypes"
-              :key="type.value"
-              :class="['type-btn', { active: emergencyType === type.value }]"
-              @click="emergencyType = type.value"
-            >
-              {{ type.label }}
-            </button>
-          </div>
-        </div>
-        <div class="message-input">
-          <label for="alert-message">Message</label>
-          <textarea
-            id="alert-message"
-            v-model="alertMessage"
-            placeholder="Describe your situation in detail..."
-            rows="4"
-          ></textarea>
-        </div>
-        <div class="location-status">
-          <span :class="['status-indicator', locationTracking ? 'active' : '']"></span>
-          <span>{{ locationStatus }}</span>
-        </div>
-        <div v-if="locationErrorMessage" class="location-error">
-          <span>{{ locationErrorMessage }}</span>
-        </div>
-        <div class="button-group">
-          <button
-            @click="sendAlert"
-            :disabled="!canSendAlert || isLoading"
-            class="send-alert-btn"
-          >
-            {{ isLoading ? 'Sending...' : 'Send Emergency Alert' }}
-          </button>
-          <button
-            @click="showGeminiPanel = !showGeminiPanel"
-            class="ask-gemini-toggle-btn"
-          >
-            {{ showGeminiPanel ? 'Hide Gemini AI' : 'Ask Gemini AI' }}
-          </button>
-        </div>
-        <div v-if="alertSent" class="alert-success">
-          <h3>Alert Sent!</h3>
-          <p>{{ notificationMessage }}</p>
-        </div>
-        <div v-if="showGeminiPanel" class="gemini-panel">
-          <div class="gemini-header">
-            <div class="gemini-header-icon">🤖</div>
-            <div class="gemini-header-text">
-              <h3>Emergency AI Assistant</h3>
-              <p class="gemini-intro">Get instant guidance for crisis situations</p>
-            </div>
-          </div>
-          <div class="chat-container">
-            <div v-if="chatHistory.length === 0" class="empty-chat">
-              <div class="empty-chat-icon">💬</div>
-              <p class="empty-chat-title">How can I help you?</p>
-              <p class="empty-chat-subtitle">Ask about emergency procedures, safety tips, or crisis response guidance.</p>
-            </div>
-            <div v-else class="chat-messages" ref="chatMessagesContainer">
-              <div 
-                v-for="(message, index) in chatHistory" 
-                :key="index" 
-                :class="['chat-message', message.sender === 'user' ? 'user-message' : 'ai-message']"
-              >
-                <div class="message-avatar">
-                  <span v-if="message.sender === 'user'">👤</span>
-                  <span v-else>🤖</span>
-                </div>
-                <div class="message-bubble">
-                  <div 
-                    class="message-text" 
-                    v-html="formatMessageText(message.text)"
-                  ></div>
-                  <div class="message-actions" v-if="message.sender === 'ai'">
-                    <button
-                      @click="speakMessage(message.text)"
-                      :disabled="isSpeaking"
-                      class="message-action-btn"
-                      title="Listen"
-                    >
-                      🔊
-                    </button>
-                    <button
-                      @click="copyMessage(message.text)"
-                      class="message-action-btn"
-                      title="Copy"
-                    >
-                      📋
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div v-if="geminiLoading" class="chat-message ai-message">
-                <div class="message-avatar">
-                  <span>🤖</span>
-                </div>
-                <div class="message-bubble typing-indicator">
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="chat-input-area">
-            <textarea
-              v-model="geminiQuestion"
-              placeholder="Type your message..."
-              rows="1"
-              class="chat-input"
-              @keydown.enter.prevent="handleEnterKey"
-            ></textarea>
-            <div class="chat-controls">
-              <button
-                @click="toggleVoiceInput"
-                :class="['voice-input-btn', { active: isListening }]"
-                :disabled="!isSpeechRecognitionAvailable"
-                :title="isSpeechRecognitionAvailable ? 'Voice input' : 'Not available'"
-              >
-                🎤
-              </button>
-              <button
-                @click="askGeminiAI"
-                :disabled="!geminiQuestion.trim() || geminiLoading"
-                class="send-message-btn"
-                title="Send message"
-              >
-                ➤
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="map-container">
-        <h2>Emergency Map</h2>
-        <div id="map" ref="mapElement"></div>
-      </div>
-    </main>
-    <div class="alerts-panel">
-      <h2>Active Alerts Nearby</h2>
-      <div v-if="nearbyAlerts.length === 0" class="no-alerts">
-        <p>No active emergency alerts in your area.</p>
-      </div>
-      <ul v-else class="alert-list">
-        <li
-          v-for="alert in nearbyAlerts"
-          :key="alert.id"
-          :class="['alert-item', { 'own-alert': alert.isOwnAlert }]"
+
+    <!-- Liquid Emotion Bar -->
+    <div class="emotion-bar-wrap" aria-label="Situation assessment">
+      <div class="emotion-bar-track">
+        <div 
+          class="emotion-bar-fill" 
+          :style="{ 
+            width: (emotionLevel / 5 * 100) + '%',
+            background: barGradient 
+          }"
         >
-          <div class="alert-header">
-            <span class="alert-type">{{ alert.emergencyType }}</span>
-            <span class="alert-distance">{{ formatDistance(alert.distance) }}</span>
+          <div class="liquid-blobs">
+            <span class="blob"></span>
+            <span class="blob"></span>
+            <span class="blob"></span>
           </div>
-          <div class="alert-timer">
-            <span class="timer-icon">⏱️</span>
-            <span class="timer-text">{{ getRemainingTime(alert.createdAt) }}</span>
-          </div>
-          <div class="alert-body">
-            <p class="alert-message">{{ alert.message }}</p>
-            <div class="alert-meta">
-              <span>From: {{ alert.userName }}</span>
-              <span>{{ formatTime(alert.createdAt) }}</span>
-            </div>
-          </div>
-          <div v-if="alert.responses.length > 0" class="alert-responses">
-            <h4>Responses:</h4>
-            <ul>
-              <li
-                v-for="response in alert.responses"
-                :key="response.responseId || response.userId"
-              >
-                <strong>{{ response.userName }}:</strong> {{ response.message }}
-                <span class="response-time">{{ formatTime(response.timestamp) }}</span>
-              </li>
-            </ul>
-          </div>
-          <div class="alert-actions">
-            <button @click="respondToAlert(alert.id)" class="respond-btn">
-              {{ alert.isOwnAlert ? 'Add Update' : 'Respond' }}
-            </button>
-          </div>
-        </li>
-      </ul>
-    </div>
-    <div v-if="showResponseModal" class="modal-overlay">
-      <div class="modal-content">
-        <h3>{{ respondingToOwnAlert ? 'Update Your Alert' : 'Respond to Alert' }}</h3>
-        <p>
-          {{
-            respondingToOwnAlert
-              ? 'Share additional details or updates for helpers nearby.'
-              : 'Send a message to the person in need:'
-          }}
-        </p>
-        <textarea
-          v-model="responseMessage"
-          placeholder="How can you help? (e.g., 'I'm nearby and can assist')"
-          rows="3"
-        ></textarea>
-        <div class="modal-actions">
-          <button @click="closeResponseModal" class="cancel-btn">Cancel</button>
-          <button @click="submitResponse" :disabled="!responseMessage.trim()" class="submit-btn">
-            Send Response
-          </button>
         </div>
+        <div class="emotion-bar-glow" :style="{ background: glowColor, opacity: 0.4 }"></div>
+      </div>
+      <div class="emotion-meta">
+        <span class="emotion-label">{{ emotionLabel }}</span>
+        <span class="emotion-level">{{ emotionLevel }}/5</span>
       </div>
     </div>
-    <div v-if="showPrivacySettings" class="modal-overlay">
-      <div class="modal-content privacy-modal">
-        <button @click="showPrivacySettings = false" class="close-btn">×</button>
+
+    <!-- Emergency Quick Actions -->
+    <nav class="actions" role="toolbar" aria-label="Emergency quick actions">
+      <a href="tel:911" class="action-btn action-critical">Call 911</a>
+      <button @click="copyEmergencyNumber" class="action-btn">{{ numberCopied ? 'Copied!' : 'Copy Number' }}</button>
+      <button @click="shareLocation" class="action-btn">Share Location</button>
+      <button @click="scrollToAlerts" class="action-btn">Threads <span class="badge" v-if="nearbyAlerts.length">{{ nearbyAlerts.length }}</span></button>
+    </nav>
+
+    <!-- DR GEMINI Chat — the mascot lives here -->
+    <section class="chat">
+      <div class="chat-head">
+        <div class="dr-avatar">Dr</div>
+        <div class="chat-info">
+          <h2 class="chat-title">Dr Gemini</h2>
+          <p class="chat-sub">Crisis guidance &middot; First aid &middot; De-escalation</p>
+        </div>
+        <div class="loc-indicator">
+          <span :class="['loc-dot', { active: locationTracking }]"></span>
+          {{ locationTracking ? 'Live' : 'Off' }}
+        </div>
+      </div>
+
+      <div class="chat-body">
+        <div v-if="chatHistory.length === 0" class="chat-empty">
+          <div class="dr-avatar dr-avatar-lg">Dr</div>
+          <p class="empty-title">How can I help?</p>
+          <p class="empty-sub">Describe your situation or pick a prompt.</p>
+          <div class="prompts">
+            <button v-for="p in quickPrompts" :key="p" class="prompt-btn" @click="useQuickPrompt(p)">{{ p }}</button>
+          </div>
+        </div>
+        <div v-else class="msgs" ref="chatMessagesContainer">
+          <div
+            v-for="(msg, i) in chatHistory"
+            :key="i"
+            :class="['msg', msg.sender === 'user' ? 'msg-user' : 'msg-ai']"
+          >
+            <div :class="['msg-avatar', msg.sender === 'user' ? 'msg-avatar-user' : 'msg-avatar-ai']">
+              <span v-if="msg.sender === 'user'">You</span>
+              <span v-else>Dr</span>
+            </div>
+            <div class="msg-bubble">
+              <div class="msg-text" v-html="formatMessageText(msg.text)"></div>
+              <div v-if="msg.sender === 'ai'" class="msg-tools">
+                <button @click="speakMessage(msg.text)" :disabled="isSpeaking" class="tool-btn" aria-label="Listen">🔊</button>
+                <button @click="copyMessage(msg.text)" class="tool-btn" aria-label="Copy">📋</button>
+              </div>
+            </div>
+          </div>
+          <div v-if="geminiLoading" class="msg msg-ai">
+            <div class="msg-avatar msg-avatar-ai"><span>Dr</span></div>
+            <div class="msg-bubble typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="chat-foot">
+        <textarea
+          v-model="geminiQuestion"
+          placeholder="Describe your situation..."
+          rows="1"
+          class="chat-input"
+          @keydown.enter.prevent="handleEnterKey"
+          aria-label="Message"
+        ></textarea>
+        <button
+          @click="toggleVoiceInput"
+          :class="['circle-btn', { active: isListening }]"
+          :disabled="!isSpeechRecognitionAvailable"
+          aria-label="Voice input"
+        >🎤</button>
+        <button
+          @click="askGeminiAI"
+          :disabled="!geminiQuestion.trim() || geminiLoading"
+          class="circle-btn circle-btn-send"
+          aria-label="Send"
+        >↑</button>
+      </div>
+    </section>
+
+    <!-- Alert Compose -->
+    <section class="compose">
+      <h3>Broadcast Alert</h3>
+      <div class="type-row">
+        <button
+          v-for="t in emergencyTypes"
+          :key="t.value"
+          :class="['type-btn', { active: emergencyType === t.value }]"
+          @click="emergencyType = t.value"
+        >{{ t.label }}</button>
+      </div>
+      <textarea
+        v-model="alertMessage"
+        placeholder="Describe your situation..."
+        rows="3"
+        class="compose-input"
+        aria-label="Alert message"
+      ></textarea>
+      <div class="compose-foot">
+        <span class="compose-loc">
+          <span :class="['loc-dot', { active: locationTracking }]"></span>
+          {{ locationStatus }}
+        </span>
+        <button
+          @click="sendAlert"
+          :disabled="!canSendAlert || isLoading"
+          class="btn-danger"
+        >{{ isLoading ? 'Sending...' : 'Send Alert' }}</button>
+      </div>
+      <p v-if="locationErrorMessage" class="err-msg">{{ locationErrorMessage }}</p>
+      <p v-if="alertSent" class="ok-msg">{{ notificationMessage }}</p>
+    </section>
+
+    <!-- Map + Threads -->
+    <div class="secondary">
+      <section class="card">
+        <h3 class="sec-title">Map</h3>
+        <div class="map-wrap">
+          <div id="map" ref="mapElement"></div>
+        </div>
+      </section>
+
+      <section class="card" ref="alertsSection">
+        <h3 class="sec-title">Alert Threads <span class="badge" v-if="nearbyAlerts.length">{{ nearbyAlerts.length }}</span></h3>
+        <div v-if="nearbyAlerts.length === 0" class="empty-threads">No active alerts nearby.</div>
+        <div v-else class="thread-list">
+          <div v-for="a in nearbyAlerts" :key="a.id" :class="['thread', { 'thread-own': a.isOwnAlert }]">
+            <div class="thread-top">
+              <span class="thread-type">{{ a.emergencyType }}</span>
+              <span class="thread-dist">{{ formatDistance(a.distance) }}</span>
+            </div>
+            <p class="thread-body">{{ a.message }}</p>
+            <div class="thread-meta">
+              <span>{{ a.userName }} · {{ formatTime(a.createdAt) }}</span>
+              <span>{{ getRemainingTime(a.createdAt) }}</span>
+            </div>
+            <div v-if="a.responses && a.responses.length" class="thread-resps">
+              <div v-for="r in a.responses" :key="r.responseId || r.userId" class="thread-resp">
+                <strong>{{ r.userName }}:</strong> {{ r.message }}
+                <span class="resp-time">{{ formatTime(r.timestamp) }}</span>
+              </div>
+            </div>
+            <div v-if="replyingTo === a.id" class="reply-area">
+              <textarea v-model="inlineReplyMessage" placeholder="Your response..." rows="2" class="reply-input"></textarea>
+              <div class="reply-btns">
+                <button @click="replyingTo = null" class="btn-ghost">Cancel</button>
+                <button @click="submitInlineReply(a.id)" :disabled="!inlineReplyMessage.trim()" class="btn-primary-sm">Send</button>
+              </div>
+            </div>
+            <button v-else @click="startInlineReply(a.id)" class="btn-ghost thread-reply-btn">
+              {{ a.isOwnAlert ? 'Update' : 'Respond' }}
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Privacy Modal -->
+    <div v-if="showPrivacySettings" class="overlay" @click.self="showPrivacySettings = false">
+      <div class="modal">
+        <button @click="showPrivacySettings = false" class="modal-close" aria-label="Close">×</button>
         <PrivacySettings />
       </div>
     </div>
   </div>
 </template>
+
 <script>
-import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
+import { ref, onMounted, computed, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { auth } from '../firebase'
 import { signOut, onAuthStateChanged } from 'firebase/auth'
 import {
-  startLocationTracking,
-  stopLocationTracking,
-  getPrivacySettings,
-  getNearestUsers,
-  getCurrentLocation
+  startLocationTracking, stopLocationTracking,
+  getPrivacySettings, getNearestUsers, getCurrentLocation
 } from '../services/locationService'
 import {
-  sendEmergencyAlert,
-  getNearbyAlerts,
-  respondToAlert as respondToAlertService,
-  subscribeToNearbyAlerts
+  sendEmergencyAlert, getNearbyAlerts,
+  respondToAlert as respondToAlertService, subscribeToNearbyAlerts
 } from '../services/alertService'
 import {
-  initMap,
-  centerMapOnUserLocation,
-  showNearbyUsers,
-  showAlerts,
-  cleanupMap
+  initMap, centerMapOnUserLocation, showNearbyUsers, showAlerts, cleanupMap
 } from '../services/mapService'
-import { askGeminiStream, getChatHistory } from '../services/geminiService'
+import { askGeminiStream, getChatHistory, analyzeEmotion } from '../services/geminiService'
 import PrivacySettings from '../components/PrivacySettings.vue'
+
 export default {
   name: 'HomePage',
-  components: {
-    PrivacySettings
-  },
+  components: { PrivacySettings },
   setup() {
-    // User state
     const user = ref(null)
     const router = useRouter()
-    // Map references
     const mapElement = ref(null)
     const mapAvailable = ref(false)
-    // UI state
-    const showGeminiPanel = ref(false)
     const showPrivacySettings = ref(false)
-    // Alert form
+    const chatMessagesContainer = ref(null)
+    const alertsSection = ref(null)
+
     const alertMessage = ref('')
     const emergencyType = ref('general')
     const isLoading = ref(false)
     const alertSent = ref(false)
     const notificationMessage = ref('')
-    // Gemini chat
+
     const geminiQuestion = ref('')
     const geminiResponse = ref('')
     const geminiLoading = ref(false)
-    const chatHistory = ref([])  // Store conversation history
-    // Location tracking
+    const chatHistory = ref([])
+
     const locationTracking = ref(false)
-    const locationStatus = ref('Location tracking inactive')
+    const locationStatus = ref('Location inactive')
     const locationErrorMessage = ref('')
-    // Nearby users and alerts
+
     const nearbyUsers = ref([])
     const nearbyAlerts = ref([])
-    // Response modal
-    const showResponseModal = ref(false)
-    const responseMessage = ref('')
-    const currentAlertId = ref(null)
-    const respondingToOwnAlert = ref(false)
-    // Emergency types
+
+    const replyingTo = ref(null)
+    const inlineReplyMessage = ref('')
+    const numberCopied = ref(false)
+    const emotionLevel = ref(3)
+    const emotionAssessment = ref(null)
+
     const emergencyTypes = [
       { label: 'General', value: 'general' },
       { label: 'Medical', value: 'medical' },
       { label: 'Safety', value: 'safety' },
       { label: 'Harassment', value: 'harassment' }
     ]
-    // Voice recognition and speech synthesis
+    const quickPrompts = [
+      'How to perform CPR?',
+      'Someone is having a seizure',
+      'I feel unsafe right now',
+      'First aid for burns'
+    ]
+
     const isListening = ref(false)
     const isSpeaking = ref(false)
     const speechRecognition = ref(null)
     const speechSynthesis = ref(window.speechSynthesis || null)
     const isSpeechRecognitionAvailable = ref(false)
-    // Computed properties
-    const canSendAlert = computed(() => {
-      return alertMessage.value.trim().length > 0 && locationTracking.value;
-    })
-    const formattedGeminiResponse = computed(() => {
-      if (!geminiResponse.value) return '';
-      // Convert line breaks to <br> for HTML display
-      return geminiResponse.value.replace(/\n/g, '<br>');
-    })
-    // Methods
-    const initializeMap = async () => {
-      try {
-        await initMap('map')
-        mapAvailable.value = true
-        try {
-          await centerMapOnUserLocation(5) // 5km radius
-          // Show nearby users on map
-          await refreshNearbyUsers()
-          // Show nearby alerts
-          await refreshNearbyAlerts()
-        } catch (geoError) {
-          if (geoError.code === 1) { // Permission denied
-            locationErrorMessage.value = 'Location permission denied. Please enable location access to use all features.'
-          } else if (geoError.code === 2) { // Position unavailable
-            locationErrorMessage.value = 'Unable to determine your location. Please try again later.'
-          } else if (geoError.code === 3) { // Timeout
-            locationErrorMessage.value = 'Location request timed out. Using default location.'
-          } else {
-            locationErrorMessage.value = 'Error getting location: ' + geoError.message
-          }
-          // Use a default location for development
-          // mockLocation.value = true // Removed mockLocation
-          locationStatus.value = 'Using demo location'
-        }
-      } catch (mapError) {
-        mapAvailable.value = false
-        locationStatus.value = 'Map service unavailable'
-        
-        // Provide specific error messages
-        if (mapError.message && mapError.message.includes('restricted')) {
-          locationErrorMessage.value = 'Google Maps API key is restricted. Please update API key restrictions in Google Cloud Console. See console for details.'
-        } else if (mapError.message && mapError.message.includes('not found')) {
-          locationErrorMessage.value = 'Map element not found. Please refresh the page.'
-        } else {
-          locationErrorMessage.value = `Google Maps could not be loaded: ${mapError.message || 'Unknown error'}. Some features will be limited.`
-        }
-        
-        console.error('Map initialization failed:', mapError)
+
+    const canSendAlert = computed(() => alertMessage.value.trim().length > 0 && locationTracking.value)
+
+    const emotionLabel = computed(() => {
+      if (emotionAssessment.value?.emotionLabel) {
+        return String(emotionAssessment.value.emotionLabel)
+          .split(/[\s/_-]+/)
+          .filter(Boolean)
+          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+          .join(' ')
       }
-    }
-    const startTracking = async () => {
-      try {
-        // Check for mock mode first
-        // if (mockLocation.value) { // Removed mockLocation
-        //   locationTracking.value = true
-        //   locationStatus.value = 'Using demo location'
-        //   return true
-        // }
-        const started = await startLocationTracking()
-        locationTracking.value = started
-        locationStatus.value = started
-          ? 'Location tracking active'
-          : 'Error starting location tracking'
-        if (!started) {
-          // Fall back to mock location if tracking fails
-          // mockLocation.value = true // Removed mockLocation
-          locationTracking.value = true
-          locationStatus.value = 'Using demo location'
-        }
-        return locationTracking.value
-      } catch (error) {
-        locationTracking.value = false
-        locationStatus.value = 'Error starting location tracking'
-        // Fall back to mock location
-        // mockLocation.value = true // Removed mockLocation
-        locationTracking.value = true
-        locationStatus.value = 'Using demo location'
-        return locationTracking.value
+      const labels = ['Critical', 'Severe', 'Moderate', 'Stable', 'Good', 'Safe']
+      return labels[Math.round(emotionLevel.value)] || 'Assessing'
+    })
+
+    const barGradient = computed(() => {
+      const level = emotionLevel.value / 5
+      if (level < 0.5) {
+        return `linear-gradient(90deg, #ef4444 0%, #f87171 100%)`
+      } else {
+        return `linear-gradient(90deg, #22c55e 0%, #4ade80 100%)`
       }
-    }
-    const refreshNearbyUsers = async () => {
-      try {
-        // Check privacy settings
-        const privacySettings = getPrivacySettings()
-        if (!privacySettings.shareWithNearbyUsers) {
-          nearbyUsers.value = []
-          return
+    })
+
+    const glowColor = computed(() => {
+      return emotionLevel.value < 2.5 ? '#ef4444' : '#22c55e'
+    })
+
+    const scrollToBottom = () => {
+      nextTick(() => {
+        if (chatMessagesContainer.value) {
+          chatMessagesContainer.value.scrollTop = chatMessagesContainer.value.scrollHeight
         }
-        // Get current location
+      })
+    }
+    watch(chatHistory, scrollToBottom, { deep: true })
+
+    const applyEmotionAssessment = (analysis) => {
+      if (!analysis) return
+
+      const nextLevel = Number(analysis.emotionScale)
+      if (Number.isFinite(nextLevel)) {
+        emotionLevel.value = Math.max(0, Math.min(5, nextLevel))
+      }
+
+      emotionAssessment.value = analysis
+    }
+
+    const copyEmergencyNumber = () => {
+      navigator.clipboard.writeText('911').then(() => {
+        numberCopied.value = true
+        setTimeout(() => { numberCopied.value = false }, 2000)
+      }).catch(() => {})
+    }
+
+    const shareLocation = async () => {
+      try {
         const position = await getCurrentLocation()
         const { latitude, longitude } = position.coords
-        // Get nearest users from backend
+        const url = `https://maps.google.com/?q=${latitude},${longitude}`
+        if (navigator.share) await navigator.share({ title: 'My Location — Gemini Alert', text: 'I need help at this location', url })
+        else { await navigator.clipboard.writeText(url); alert('Location link copied') }
+      } catch (e) { alert('Could not get location.') }
+    }
+
+    const scrollToAlerts = () => { if (alertsSection.value) alertsSection.value.scrollIntoView({ behavior: 'smooth' }) }
+    const useQuickPrompt = (p) => { geminiQuestion.value = p; askGeminiAI() }
+    const startInlineReply = (id) => { replyingTo.value = id; inlineReplyMessage.value = '' }
+    const submitInlineReply = async (id) => {
+      if (!inlineReplyMessage.value.trim()) return
+      try { await respondToAlertService(id, inlineReplyMessage.value); await refreshNearbyAlerts(); replyingTo.value = null; inlineReplyMessage.value = '' } catch (e) { /* silent */ }
+    }
+
+    const initializeMap = async () => {
+      try {
+        await initMap('map'); mapAvailable.value = true
+        try { await centerMapOnUserLocation(5); await refreshNearbyUsers(); await refreshNearbyAlerts() }
+        catch (geoError) {
+          if (geoError.code === 1) locationErrorMessage.value = 'Location permission denied.'
+          else if (geoError.code === 2) locationErrorMessage.value = 'Unable to determine your location.'
+          else if (geoError.code === 3) locationErrorMessage.value = 'Location request timed out.'
+          else locationErrorMessage.value = 'Error getting location: ' + geoError.message
+          locationStatus.value = 'Demo location'
+        }
+      } catch (mapError) {
+        mapAvailable.value = false; locationStatus.value = 'Map unavailable'
+        locationErrorMessage.value = `Maps could not load: ${mapError.message || 'Unknown error'}.`
+        console.error('Map init failed:', mapError)
+      }
+    }
+
+    const startTracking = async () => {
+      try {
+        const started = await startLocationTracking()
+        locationTracking.value = started
+        locationStatus.value = started ? 'Location active' : 'Location error'
+        if (!started) { locationTracking.value = true; locationStatus.value = 'Demo location' }
+        return locationTracking.value
+      } catch (error) { locationTracking.value = true; locationStatus.value = 'Demo location'; return true }
+    }
+
+    const refreshNearbyUsers = async () => {
+      try {
+        const ps = getPrivacySettings(); if (!ps.shareWithNearbyUsers) { nearbyUsers.value = []; return }
+        const position = await getCurrentLocation(); const { latitude, longitude } = position.coords
         const users = await getNearestUsers(latitude, longitude)
-        nearbyUsers.value = users.map(user => ({
-          uid: user.userId,
-          displayName: user.displayName,
-          distance: user.distance_km,
-          latitude: user.latitude,
-          longitude: user.longitude
-        }))
-        // Show users on map
-        if (mapAvailable.value) {
-          await showNearbyUsers(5)
-        }
-      } catch (error) {
-        nearbyUsers.value = []
-        }
-      }
+        nearbyUsers.value = users.map(u => ({ uid: u.userId, displayName: u.displayName, distance: u.distance_km, latitude: u.latitude, longitude: u.longitude }))
+        if (mapAvailable.value) await showNearbyUsers(5)
+      } catch (error) { nearbyUsers.value = [] }
+    }
+
     const refreshNearbyAlerts = async () => {
-      try {
-        // Get alerts within 10km
-        const alerts = await getNearbyAlerts(10)
-        nearbyAlerts.value = alerts
-        // Show alerts on map
-        if (mapAvailable.value) {
-          await showAlerts(alerts)
-        }
-      } catch (error) {
-        nearbyAlerts.value = []
-        }
-      }
+      try { const alerts = await getNearbyAlerts(10); nearbyAlerts.value = alerts; if (mapAvailable.value) await showAlerts(alerts) }
+      catch (error) { nearbyAlerts.value = [] }
+    }
+
     const sendAlert = async () => {
-      if (!canSendAlert.value) return
-      isLoading.value = true
-      alertSent.value = false
-      try {
-        // Send real alert
-        await sendEmergencyAlert(alertMessage.value, emergencyType.value)
-        alertSent.value = true
-        notificationMessage.value = 'Your alert has been sent to users in your area.'
-        // Refresh alerts to include the one we just sent
-        await refreshNearbyAlerts()
-      } catch (error) {
-        alertSent.value = true
-        notificationMessage.value = 'There was an error sending your alert. Please try again.'
-      } finally {
-        isLoading.value = false
-      }
+      if (!canSendAlert.value) return; isLoading.value = true; alertSent.value = false
+      try { await sendEmergencyAlert(alertMessage.value, emergencyType.value); alertSent.value = true; notificationMessage.value = 'Alert sent to nearby users.'; await refreshNearbyAlerts() }
+      catch (error) { alertSent.value = true; notificationMessage.value = 'Error sending alert. Try again.' }
+      finally { isLoading.value = false }
     }
+
     const askGeminiAI = async () => {
-      if (!geminiQuestion.value.trim()) return;
-      // Add the user's message to chat history
-      chatHistory.value.push({
-        sender: 'user',
-        text: geminiQuestion.value,
-        timestamp: new Date()
-      });
-      // Store the question
-      const question = geminiQuestion.value;
-      // Clear the input field so the user can type a new message
-      geminiQuestion.value = '';
-      geminiLoading.value = true;
-      geminiResponse.value = '';
+      if (!geminiQuestion.value.trim()) return
+      const question = geminiQuestion.value
+      const recentContext = chatHistory.value.slice(-4).map((message) => ({
+        senderName: message.sender === 'user' ? 'User' : 'Dr Gemini',
+        text: message.text
+      }))
+
+      chatHistory.value.push({ sender: 'user', text: question, timestamp: new Date() })
+      geminiQuestion.value = ''; geminiLoading.value = true; geminiResponse.value = ''
       try {
-        // Use the streaming API for a more interactive experience
-        let fullResponse = '';
+        const analysis = await analyzeEmotion(question, {
+          priorScale: emotionAssessment.value?.emotionScale ?? emotionLevel.value,
+          contextMessages: recentContext
+        })
+        applyEmotionAssessment(analysis)
+
+        let fullResponse = ''
         const handleChunk = (chunk) => {
-          fullResponse += chunk;
-          geminiResponse.value = fullResponse;
-          // Update the last AI message or add a new one if it doesn't exist yet
-          if (chatHistory.value.length > 0 && chatHistory.value[chatHistory.value.length - 1].sender === 'ai') {
-            chatHistory.value[chatHistory.value.length - 1].text = fullResponse;
-          } else {
-            chatHistory.value.push({
-              sender: 'ai',
-              text: fullResponse,
-              timestamp: new Date()
-            });
-          }
-        };
-        await askGeminiStream(question, handleChunk);
+          fullResponse += chunk; geminiResponse.value = fullResponse
+          if (chatHistory.value.length > 0 && chatHistory.value[chatHistory.value.length - 1].sender === 'ai') chatHistory.value[chatHistory.value.length - 1].text = fullResponse
+          else chatHistory.value.push({ sender: 'ai', text: fullResponse, timestamp: new Date() })
+        }
+        await askGeminiStream(question, handleChunk)
       } catch (error) {
-        const errorMessage = 'Sorry, there was an error getting a response. Please try again later.';
-        geminiResponse.value = errorMessage;
-        // Add error message to chat history
-        chatHistory.value.push({
-          sender: 'ai',
-          text: errorMessage,
-          timestamp: new Date(),
-          isError: true
-        });
-      } finally {
-        geminiLoading.value = false;
-      }
-    };
-    const respondToAlert = (alertId) => {
-      const targetAlert = nearbyAlerts.value.find(alert => alert.id === alertId)
-      respondingToOwnAlert.value = !!(targetAlert && targetAlert.isOwnAlert)
-      currentAlertId.value = alertId
-      responseMessage.value = ''
-      showResponseModal.value = true
+        const errorMessage = 'Sorry, there was an error. Please try again.'
+        geminiResponse.value = errorMessage
+        chatHistory.value.push({ sender: 'ai', text: errorMessage, timestamp: new Date(), isError: true })
+      } finally { geminiLoading.value = false }
     }
-    const closeResponseModal = () => {
-      showResponseModal.value = false
-      responseMessage.value = ''
-      currentAlertId.value = null
-      respondingToOwnAlert.value = false
-    }
-    const submitResponse = async () => {
-      if (!responseMessage.value.trim() || !currentAlertId.value) return
-      try {
-        await respondToAlertService(currentAlertId.value, responseMessage.value)
-        await refreshNearbyAlerts()
-        closeResponseModal()
-      } catch (error) {
-      }
-    }
-    const logout = async () => {
-      try {
-        // Stop location tracking
-        stopLocationTracking()
-        // Clean up map
-        cleanupMap()
-        // Sign out
-        await signOut(auth)
-        // Navigate to login
-        router.push('/login')
-      } catch (error) {
-      }
-    }
-    // Helper functions
-    const formatDistance = (distance) => {
-      if (typeof distance !== 'number') {
-        return '...';
-      }
-      if (distance < 1) {
-        return `${Math.round(distance * 1000)} m`
-      }
-      return `${distance.toFixed(1)} km`
-    }
-    const formatTime = (dateTime) => {
-      const date = new Date(dateTime)
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }
-    
+
+    const logout = async () => { try { stopLocationTracking(); cleanupMap(); await signOut(auth); router.push('/login') } catch (e) { /* silent */ } }
+
+    const formatDistance = (d) => { if (typeof d !== 'number') return '...'; return d < 1 ? `${Math.round(d * 1000)}m` : `${d.toFixed(1)}km` }
+    const formatTime = (dt) => new Date(dt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     const getRemainingTime = (createdAt) => {
-      const now = Date.now();
-      const alertTime = createdAt instanceof Date ? createdAt.getTime() : createdAt;
-      const threeHoursInMs = 3 * 60 * 60 * 1000;
-      const elapsed = now - alertTime;
-      const remaining = threeHoursInMs - elapsed;
-      
-      if (remaining <= 0) {
-        return 'Expired';
-      }
-      
-      const hours = Math.floor(remaining / (60 * 60 * 1000));
-      const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
-      
-      if (hours > 0) {
-        return `${hours}h ${minutes}m remaining`;
-      }
-      return `${minutes}m remaining`;
+      const remaining = 3 * 60 * 60 * 1000 - (Date.now() - (createdAt instanceof Date ? createdAt.getTime() : createdAt))
+      if (remaining <= 0) return 'Expired'
+      const h = Math.floor(remaining / 3600000); const m = Math.floor((remaining % 3600000) / 60000)
+      return h > 0 ? `${h}h ${m}m` : `${m}m`
     }
-    // Chat functionality
+
     const formatMessageText = (text) => {
-      if (!text) return '';
-      // Escape HTML to prevent XSS attacks
-      let formatted = text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-      
-      // Convert markdown formatting
-      // **text** for bold titles/headings
-      formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-      // *text* for emphasis/bold
-      formatted = formatted.replace(/\*(.+?)\*/g, '<em>$1</em>');
-      // Convert line breaks to <br> for HTML display
-      formatted = formatted.replace(/\n/g, '<br>');
-      
-      return formatted;
+      if (!text) return ''
+      let f = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      f = f.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      f = f.replace(/\*(.+?)\*/g, '<em>$1</em>')
+      f = f.replace(/\n/g, '<br>')
+      return f
     }
-    const handleEnterKey = (event) => {
-      // Only proceed if not Shift+Enter and there's content to send
-      if (!event.shiftKey && geminiQuestion.value.trim()) {
-        askGeminiAI();
-      }
-    }
-    // Voice functionality
-    const toggleVoiceInput = () => {
-      if (!speechRecognition.value) {
-        return
-      }
-      if (isListening.value) {
-        speechRecognition.value.stop()
-      } else {
-        // Clear the input first
-        if (!geminiQuestion.value.trim()) {
-          geminiQuestion.value = ''
-        }
-        try {
-          speechRecognition.value.start()
-        } catch (error) {
-        }
-      }
-    }
+
+    const handleEnterKey = (e) => { if (!e.shiftKey && geminiQuestion.value.trim()) askGeminiAI() }
+    const toggleVoiceInput = () => { if (!speechRecognition.value) return; if (isListening.value) speechRecognition.value.stop(); else { try { speechRecognition.value.start() } catch (e) { /* */ } } }
     const speakMessage = (text) => {
-      if (!speechSynthesis.value) {
-        return
-      }
-      if (isSpeaking.value) {
-        speechSynthesis.value.cancel()
-        isSpeaking.value = false
-        return
-      }
-      // Strip HTML tags from response
-      const plainText = text.replace(/<[^>]*>/g, '')
-      const utterance = new SpeechSynthesisUtterance(plainText)
-      utterance.lang = 'en-US'
-      utterance.rate = 1.0
-      utterance.pitch = 1.0
-      utterance.onstart = () => {
-        isSpeaking.value = true
-      }
-      utterance.onend = () => {
-        isSpeaking.value = false
-      }
-      utterance.onerror = () => {
-        isSpeaking.value = false
-      }
-      speechSynthesis.value.speak(utterance)
+      if (!speechSynthesis.value) return
+      if (isSpeaking.value) { speechSynthesis.value.cancel(); isSpeaking.value = false; return }
+      const u = new SpeechSynthesisUtterance(text.replace(/<[^>]*>/g, '')); u.lang = 'en-US'
+      u.onstart = () => { isSpeaking.value = true }; u.onend = () => { isSpeaking.value = false }; u.onerror = () => { isSpeaking.value = false }
+      speechSynthesis.value.speak(u)
     }
-    // For backward compatibility
-    const speakResponse = () => {
-      if (geminiResponse.value) {
-        speakMessage(geminiResponse.value);
-      }
-    }
-    const copyMessage = (text) => {
-      const plainText = text.replace(/<[^>]*>/g, '')
-      navigator.clipboard.writeText(plainText)
-        .then(() => {
-          alert('Message copied to clipboard')
-        })
-        .catch(() => {
-        })
-    }
-    // For backward compatibility
-    const copyResponse = () => {
-      if (geminiResponse.value) {
-        copyMessage(geminiResponse.value);
-      }
-    }
-    // Initialize speech recognition if available
+    const copyMessage = (text) => { navigator.clipboard.writeText(text.replace(/<[^>]*>/g, '')).catch(() => {}) }
+
     const initSpeechRecognition = () => {
-      // Check if the browser supports SpeechRecognition
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-      if (!SpeechRecognition) {
-        isSpeechRecognitionAvailable.value = false
-        return
-      }
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+      if (!SR) { isSpeechRecognitionAvailable.value = false; return }
       isSpeechRecognitionAvailable.value = true
       try {
-        speechRecognition.value = new SpeechRecognition()
-        speechRecognition.value.continuous = false
-        speechRecognition.value.interimResults = true
-        speechRecognition.value.lang = 'en-US'
-        speechRecognition.value.onstart = () => {
-          isListening.value = true
-        }
-        speechRecognition.value.onend = () => {
-          isListening.value = false
-        }
-        speechRecognition.value.onresult = (event) => {
-          const transcript = event.results[0][0].transcript
-          geminiQuestion.value = transcript
-        }
-        speechRecognition.value.onerror = () => {
-          isListening.value = false
-        }
-      } catch (error) {
-        isSpeechRecognitionAvailable.value = false
-      }
-    }
-    // Lifecycle hooks
-    let userInterval = null
-    let privacyUpdateListener = null
-    let authUnsubscribe = null
-    let alertsUnsubscribe = null
-
-    const clearScheduledUpdates = () => {
-      if (userInterval) {
-        clearInterval(userInterval)
-        userInterval = null
-      }
+        speechRecognition.value = new SR(); speechRecognition.value.continuous = false; speechRecognition.value.interimResults = true; speechRecognition.value.lang = 'en-US'
+        speechRecognition.value.onstart = () => { isListening.value = true }; speechRecognition.value.onend = () => { isListening.value = false }
+        speechRecognition.value.onresult = (e) => { geminiQuestion.value = e.results[0][0].transcript }; speechRecognition.value.onerror = () => { isListening.value = false }
+      } catch (e) { isSpeechRecognitionAvailable.value = false }
     }
 
-    const detachPrivacyListener = () => {
-      if (privacyUpdateListener) {
-        window.removeEventListener('privacy-settings-updated', privacyUpdateListener)
-        privacyUpdateListener = null
-      }
-    }
+    let userInterval = null, privacyUpdateListener = null, authUnsubscribe = null, alertsUnsubscribe = null
+    const clearScheduledUpdates = () => { if (userInterval) { clearInterval(userInterval); userInterval = null } }
+    const detachPrivacyListener = () => { if (privacyUpdateListener) { window.removeEventListener('privacy-settings-updated', privacyUpdateListener); privacyUpdateListener = null } }
 
     onMounted(async () => {
       initSpeechRecognition()
-      // Fetch initial chat history
-      try {
-        const history = await getChatHistory()
-        chatHistory.value = history
-      } catch (error) {
-        console.error("Failed to load chat history:", error)
-      }
-
-      // Check if user is logged in
-      authUnsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-        clearScheduledUpdates()
-        detachPrivacyListener()
-        if (alertsUnsubscribe) {
-          alertsUnsubscribe()
-          alertsUnsubscribe = null
-        }
-
-        user.value = currentUser
-        if (!currentUser) {
-          stopLocationTracking()
-          cleanupMap()
-          router.push('/login')
-          return
-        }
-        
-        // Wait for DOM to be fully ready before initializing map
-        await new Promise(resolve => setTimeout(resolve, 100))
-        
-        // Start location tracking
-        startTracking()
-        
-        // Initialize map - wait for element to be available
-        if (mapElement.value || document.getElementById('map')) {
-          initializeMap()
-        } else {
-          // Retry after a longer delay if element not found
-          setTimeout(() => {
-            if (document.getElementById('map')) {
-              initializeMap()
-            } else {
-              console.error('Map element not found after timeout')
-            }
-          }, 500)
-        }
-        
-        // Set up refresh intervals
-        userInterval = setInterval(refreshNearbyUsers, 30000) // Every 30 seconds
+      try { chatHistory.value = await getChatHistory() } catch (e) { console.error("Failed to load chat history:", e) }
+      authUnsubscribe = onAuthStateChanged(auth, async (cu) => {
+        clearScheduledUpdates(); detachPrivacyListener()
+        if (alertsUnsubscribe) { alertsUnsubscribe(); alertsUnsubscribe = null }
+        user.value = cu
+        if (!cu) { stopLocationTracking(); cleanupMap(); router.push('/login'); return }
+        await new Promise(r => setTimeout(r, 100)); startTracking()
+        if (mapElement.value || document.getElementById('map')) initializeMap()
+        else setTimeout(() => { if (document.getElementById('map')) initializeMap() }, 500)
+        userInterval = setInterval(refreshNearbyUsers, 30000)
         alertsUnsubscribe = subscribeToNearbyAlerts(10, async (alerts) => {
           nearbyAlerts.value = alerts
-          if (mapAvailable.value) {
-            try {
-              await showAlerts(alerts)
-            } catch (error) {
-              console.error('Failed to update map alerts:', error)
-            }
-          }
+          if (mapAvailable.value) { try { await showAlerts(alerts) } catch (e) { /* */ } }
         })
-        
-        // Listen for privacy settings changes
-        const handlePrivacyUpdate = (event) => {
+        const hpu = (event) => {
           const { detail } = event
-          if (detail.locationSharing !== undefined) {
-            if (detail.locationSharing) {
-              startTracking()
-            } else {
-              locationTracking.value = false
-              locationStatus.value = 'Location sharing disabled'
-            }
-          }
+          if (detail.locationSharing !== undefined) { if (detail.locationSharing) startTracking(); else { locationTracking.value = false; locationStatus.value = 'Location off' } }
         }
-        
-        window.addEventListener('privacy-settings-updated', handlePrivacyUpdate)
-        privacyUpdateListener = handlePrivacyUpdate
+        window.addEventListener('privacy-settings-updated', hpu); privacyUpdateListener = hpu
       })
     })
 
     onBeforeUnmount(() => {
-      clearScheduledUpdates()
-      detachPrivacyListener()
-      if (alertsUnsubscribe) {
-        alertsUnsubscribe()
-        alertsUnsubscribe = null
-      }
-      if (authUnsubscribe) {
-        authUnsubscribe()
-        authUnsubscribe = null
-      }
+      clearScheduledUpdates(); detachPrivacyListener()
+      if (alertsUnsubscribe) { alertsUnsubscribe(); alertsUnsubscribe = null }
+      if (authUnsubscribe) { authUnsubscribe(); authUnsubscribe = null }
     })
 
     return {
-      user,
-      mapElement,
-      showGeminiPanel,
-      alertMessage,
-      emergencyType,
-      emergencyTypes,
-      isLoading,
-      alertSent,
-      notificationMessage,
-      geminiQuestion,
-      geminiResponse,
-      geminiLoading,
-      formattedGeminiResponse,
-      chatHistory,
-      locationTracking,
-      locationStatus,
-      locationErrorMessage,
-      nearbyUsers,
-      nearbyAlerts,
-      showResponseModal,
-      responseMessage,
-      respondingToOwnAlert,
-      canSendAlert,
-      sendAlert,
-      askGeminiAI,
-      logout,
-      respondToAlert,
-      closeResponseModal,
-      submitResponse,
-      formatDistance,
-      formatTime,
-      getRemainingTime,
-      formatMessageText,
-      handleEnterKey,
-      isListening,
-      isSpeaking,
-      isSpeechRecognitionAvailable,
-      toggleVoiceInput,
-      speakMessage,
-      speakResponse,
-      copyMessage,
-      copyResponse,
-      showPrivacySettings
+      user, mapElement, chatMessagesContainer, alertsSection,
+      alertMessage, emergencyType, emergencyTypes, isLoading, alertSent, notificationMessage,
+      geminiQuestion, geminiResponse, geminiLoading, chatHistory, quickPrompts,
+      locationTracking, locationStatus, locationErrorMessage,
+      nearbyUsers, nearbyAlerts,
+      replyingTo, inlineReplyMessage, numberCopied,
+      emotionLevel, emotionLabel, barGradient, glowColor,
+      canSendAlert, sendAlert, askGeminiAI, logout,
+      formatDistance, formatTime, getRemainingTime, formatMessageText, handleEnterKey,
+      isListening, isSpeaking, isSpeechRecognitionAvailable,
+      toggleVoiceInput, speakMessage, copyMessage,
+      showPrivacySettings,
+      copyEmergencyNumber, shareLocation, scrollToAlerts,
+      useQuickPrompt, startInlineReply, submitInlineReply
     }
   }
 }
 </script>
-<style scoped>
-.app-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 20px;
-}
-.app-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 0;
-  border-bottom: 1px solid #e0e0e0;
-  margin-bottom: 1.5rem;
-}
-.logo h1 {
-  color: #3f51b5;
-  margin: 0;
-}
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-.settings-btn {
-  background-color: transparent;
-  border: 1px solid #3f51b5;
-  color: #3f51b5;
-  border-radius: 4px;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  transition: all 0.2s;
-}
-.settings-btn:hover {
-  background-color: #3f51b5;
-  color: white;
-}
-.logout-btn {
-  background-color: transparent;
-  border: 1px solid #d32f2f;
-  color: #d32f2f;
-  border-radius: 4px;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  transition: all 0.2s;
-}
-.logout-btn:hover {
-  background-color: #d32f2f;
-  color: white;
-}
-.main-content {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2rem;
-  margin-bottom: 2rem;
-}
-@media (max-width: 768px) {
-  .main-content {
-    grid-template-columns: 1fr;
-  }
-}
-.alert-panel, .map-container {
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  padding: 1.5rem;
-}
-.intro-text {
-  margin-bottom: 1.5rem;
-  color: #666;
-}
-.emergency-type {
-  margin-bottom: 1.5rem;
-}
-.type-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-.type-btn {
-  border: 1px solid #3f51b5;
-  background-color: white;
-  color: #3f51b5;
-  border-radius: 4px;
-  padding: 0.5rem 1rem;
-  transition: all 0.2s;
-}
-.type-btn.active, .type-btn:hover {
-  background-color: #3f51b5;
-  color: white;
-}
-.message-input {
-  margin-bottom: 1.5rem;
-}
-.message-input label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: bold;
-}
-.message-input textarea {
-  width: 100%;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  padding: 0.75rem;
-  font-family: inherit;
-  resize: vertical;
-}
-.location-status {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-  font-size: 0.875rem;
-}
-.status-indicator {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background-color: #ccc;
-}
-.status-indicator.active {
-  background-color: #4caf50;
-}
-.location-error {
-  margin-bottom: 1rem;
-  padding: 0.5rem;
-  background-color: #ffebee;
-  border-radius: 4px;
-  font-size: 0.875rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.button-group {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-.send-alert-btn {
-  background-color: #d32f2f;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 0.75rem 1.5rem;
-  font-weight: bold;
-  flex: 1;
-  transition: background-color 0.2s;
-}
-.send-alert-btn:hover:not(:disabled) {
-  background-color: #b71c1c;
-}
-.send-alert-btn:disabled {
-  background-color: #e0e0e0;
-  color: #9e9e9e;
-  cursor: not-allowed;
-}
-.ask-gemini-toggle-btn {
-  background-color: #3f51b5;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 0.75rem 1.5rem;
-  transition: background-color 0.2s;
-}
-.ask-gemini-toggle-btn:hover {
-  background-color: #303f9f;
-}
-.alert-success {
-  background-color: #e8f5e9;
-  border-radius: 4px;
-  padding: 1rem;
-  margin-bottom: 1.5rem;
-}
-.alert-success h3 {
-  color: #4caf50;
-  margin-top: 0;
-}
-.gemini-panel {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 20px;
-  padding: 1.5rem;
-  margin-top: 1rem;
-  border: none;
-  display: flex;
-  flex-direction: column;
-  height: 550px;
-  box-shadow: 0 15px 40px rgba(102, 126, 234, 0.3);
-}
-.gemini-header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-.gemini-header-icon {
-  width: 44px;
-  height: 44px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.5rem;
-  backdrop-filter: blur(10px);
-}
-.gemini-header-text h3 {
-  color: white;
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 700;
-  letter-spacing: -0.3px;
-}
-.gemini-intro {
-  margin: 0.125rem 0 0 0;
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.75);
-}
-/* Chat container styles */
-.chat-container {
-  flex: 1;
-  overflow: hidden;
-  margin-bottom: 1rem;
-  border-radius: 16px;
-  background-color: #f8f9fb;
-  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.08);
-  display: flex;
-  flex-direction: column;
-}
-.empty-chat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  text-align: center;
-  padding: 2rem;
-}
-.empty-chat-icon {
-  font-size: 2.5rem;
-  margin-bottom: 0.75rem;
-  opacity: 0.6;
-}
-.empty-chat-title {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #444;
-  margin: 0 0 0.5rem 0;
-}
-.empty-chat-subtitle {
-  font-size: 0.85rem;
-  color: #888;
-  margin: 0;
-  line-height: 1.5;
-  max-width: 280px;
-}
-.chat-messages {
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  overflow-y: auto;
-  flex: 1;
-}
-.chat-messages::-webkit-scrollbar {
-  width: 5px;
-}
-.chat-messages::-webkit-scrollbar-track {
-  background: transparent;
-}
-.chat-messages::-webkit-scrollbar-thumb {
-  background: rgba(102, 126, 234, 0.25);
-  border-radius: 10px;
-}
-.chat-messages::-webkit-scrollbar-thumb:hover {
-  background: rgba(102, 126, 234, 0.4);
-}
-.chat-message {
-  display: flex;
-  align-items: flex-start;
-  animation: slideIn 0.25s ease-out;
-}
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.message-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  margin-right: 0.625rem;
-  flex-shrink: 0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  box-shadow: 0 3px 10px rgba(102, 126, 234, 0.3);
-}
-.user-message .message-avatar {
-  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-  order: 2;
-  margin-right: 0;
-  margin-left: 0.625rem;
-}
-.message-bubble {
-  position: relative;
-  padding: 0.875rem 1rem;
-  border-radius: 16px;
-  max-width: 85%;
-  word-break: break-word;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
-}
-.user-message {
-  justify-content: flex-end;
-}
-.user-message .message-bubble {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border-bottom-right-radius: 4px;
-}
-.ai-message .message-bubble {
-  background: white;
-  color: #2d3748;
-  border-bottom-left-radius: 4px;
-  border: 1px solid rgba(0, 0, 0, 0.04);
-}
-.message-text {
-  line-height: 1.6;
-  font-size: 0.9rem;
-}
-.message-text strong {
-  font-weight: 700;
-  font-size: 0.95rem;
-  display: block;
-  margin: 0.75rem 0 0.4rem 0;
-  color: #1a202c;
-  border-bottom: 1px solid rgba(102, 126, 234, 0.15);
-  padding-bottom: 0.3rem;
-}
-.message-text strong:first-child {
-  margin-top: 0;
-}
-.user-message .message-text strong {
-  color: #fff;
-  border-bottom-color: rgba(255, 255, 255, 0.2);
-}
-.message-text em {
-  font-style: normal;
-  font-weight: 600;
-  color: #667eea;
-  background: rgba(102, 126, 234, 0.08);
-  padding: 0.1rem 0.3rem;
-  border-radius: 4px;
-}
-.user-message .message-text em {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.15);
-}
-.message-actions {
-  display: flex;
-  gap: 0.375rem;
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid rgba(0, 0, 0, 0.05);
-  justify-content: flex-end;
-}
-.message-action-btn {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  font-size: 0.8rem;
-  padding: 0.3rem 0.5rem;
-  border-radius: 6px;
-  transition: all 0.15s;
-  opacity: 0.5;
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-}
-.message-action-btn:hover {
-  opacity: 1;
-  background: rgba(102, 126, 234, 0.1);
-}
-.typing-indicator {
-  display: flex;
-  align-items: center;
-  padding: 0.75rem 1rem;
-  gap: 0.35rem;
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
-  max-width: 70px;
-  border: 1px solid rgba(0, 0, 0, 0.04);
-}
-.dot {
-  width: 8px;
-  height: 8px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 50%;
-  animation: bounce 1.4s infinite ease-in-out both;
-}
-.dot:nth-child(1) {
-  animation-delay: -0.32s;
-}
-.dot:nth-child(2) {
-  animation-delay: -0.16s;
-}
-@keyframes bounce {
-  0%, 80%, 100% {
-    transform: scale(0.6);
-    opacity: 0.4;
-  }
-  40% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-#map {
-  height: 300px;
-  width: 100%;
-  margin-bottom: 1.5rem;
-  border-radius: 4px;
-  border: 1px solid #e0e0e0;
-}
-.nearby-users h3 {
-  margin-top: 0;
-  margin-bottom: 1rem;
-}
-.no-users {
-  color: #757575;
-  font-style: italic;
-}
-.user-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.user-item {
-  border-bottom: 1px solid #e0e0e0;
-  padding: 0.75rem 0;
-}
-.user-item:last-child {
-  border-bottom: none;
-}
-.user-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.alerts-panel {
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  padding: 1.5rem;
-  margin-bottom: 2rem;
-}
-.alert-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.alert-item {
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  padding: 1rem;
-  margin-bottom: 1rem;
-}
-.alert-item.own-alert {
-  border-color: #3f51b5;
-  background-color: #f5f5ff;
-}
-.alert-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-  font-size: 0.875rem;
-}
-.alert-type {
-  background-color: #3f51b5;
-  color: white;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  text-transform: capitalize;
-}
-.alert-timer {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  margin: 0.5rem 0;
-  font-size: 0.875rem;
-}
-.timer-icon {
-  font-size: 1rem;
-}
-.timer-text {
-  color: #666;
-  font-weight: 500;
-}
-.alert-body {
-  margin-bottom: 1rem;
-}
-.alert-message {
-  margin: 0.5rem 0;
-}
-.alert-meta {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.75rem;
-  color: #757575;
-}
-.alert-responses {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #eee;
-}
-.alert-responses h4 {
-  margin-top: 0;
-  margin-bottom: 0.5rem;
-  font-size: 0.875rem;
-  color: #333;
-}
-.alert-responses ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.alert-responses li {
-  font-size: 0.875rem;
-  margin-bottom: 0.5rem;
-  color: #555;
-}
-.response-time {
-  font-size: 0.75rem;
-  color: #999;
-  margin-left: 0.5rem;
-}
-.alert-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-.respond-btn {
-  background-color: #4caf50;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  transition: background-color 0.2s;
-}
-.respond-btn:hover {
-  background-color: #3d8b40;
-}
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 100;
-}
-.modal-content {
-  background-color: white;
-  border-radius: 8px;
-  padding: 1.5rem;
-  width: 90%;
-  max-width: 500px;
-}
-.modal-content h3 {
-  margin-top: 0;
-}
-.modal-content textarea {
-  width: 100%;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  padding: 0.75rem;
-  margin: 1rem 0;
-  font-family: inherit;
-  resize: vertical;
-}
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-}
-.cancel-btn {
-  background-color: transparent;
-  border: 1px solid #757575;
-  color: #757575;
-  border-radius: 4px;
-  padding: 0.5rem 1rem;
-}
-.submit-btn {
-  background-color: #3f51b5;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 0.5rem 1rem;
-}
-.submit-btn:disabled {
-  background-color: #e0e0e0;
-  color: #9e9e9e;
-  cursor: not-allowed;
-}
-.privacy-modal {
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-}
-.privacy-modal .close-btn {
-  align-self: flex-end;
-  background-color: #f0f0f0;
-  border: 1px solid #ccc;
-  border-radius: 50%;
-  width: 2rem;
-  height: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.5rem;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-.privacy-modal .close-btn:hover {
-  background-color: #e0e0e0;
-}
-.no-alerts {
-  color: #757575;
-  font-style: italic;
-  text-align: center;
-  padding: 2rem;
-}
 
-/* Chat input area styles */
-.chat-input-area {
-  display: flex;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 16px;
-  backdrop-filter: blur(10px);
-  align-items: center;
+<style scoped>
+/* ===== PAGE ===== */
+.page { max-width: 640px; margin: 0 auto; padding: 0 var(--sp-md) var(--sp-xl); }
+
+/* ===== HEADER ===== */
+.hdr { display: flex; justify-content: space-between; align-items: center; padding: var(--sp-lg) 0; border-bottom: 1px solid var(--c-border); margin-bottom: var(--sp-md); }
+.brand { font-size: var(--fs-lg); font-weight: 800; letter-spacing: -0.03em; }
+.hdr-right { display: flex; align-items: center; gap: var(--sp-sm); }
+.user-name { font-size: var(--fs-sm); color: var(--c-text-soft); }
+
+/* ===== BUTTONS ===== */
+.btn-ghost { background: transparent; border: 1px solid var(--c-border); color: var(--c-text-soft); padding: 0.35rem 0.85rem; border-radius: var(--radius-pill); font-size: var(--fs-sm); font-weight: 600; transition: border-color 0.15s, color 0.15s; }
+.btn-ghost:hover { border-color: var(--c-text); color: var(--c-text); }
+.btn-out:hover { border-color: var(--c-bad); color: var(--c-bad); }
+.btn-danger { background: var(--c-bad); color: white; border: none; padding: 0.5rem 1.25rem; border-radius: var(--radius-pill); font-size: var(--fs-sm); font-weight: 700; transition: opacity 0.15s; }
+.btn-danger:hover:not(:disabled) { opacity: 0.85; }
+.btn-danger:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn-primary-sm { background: var(--c-text); color: var(--c-bg); border: none; padding: 0.35rem 0.85rem; border-radius: var(--radius-pill); font-size: var(--fs-sm); font-weight: 600; }
+.btn-primary-sm:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* ===== LIQUID EMOTION BAR ===== */
+.emotion-bar-wrap { margin-bottom: var(--sp-lg); }
+.emotion-bar-track { 
+  position: relative; 
+  height: 28px; 
+  background: var(--c-surface); 
+  border-radius: var(--radius-pill); 
+  overflow: hidden;
+  border: 1px solid var(--c-border);
 }
-.chat-input {
-  flex: 1;
-  background: white;
-  border: none;
-  border-radius: 12px;
-  padding: 0.75rem 1rem;
-  font-family: inherit;
-  font-size: 0.9rem;
-  resize: none;
-  outline: none;
-  transition: all 0.2s;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  min-height: 44px;
-  max-height: 100px;
+.emotion-bar-fill { 
+  height: 100%; 
+  border-radius: var(--radius-pill); 
+  position: relative; 
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1), background 0.6s ease;
+  overflow: hidden;
 }
-.chat-input:focus {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-}
-.chat-input::placeholder {
-  color: #aaa;
-}
-.chat-controls {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-.voice-input-btn,
-.send-message-btn {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  border: none;
+.liquid-blobs {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 1.1rem;
-  cursor: pointer;
-  transition: all 0.2s;
+  justify-content: space-around;
+}
+.blob {
+  width: 20px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  animation: blob-float 2.5s ease-in-out infinite;
+  filter: blur(2px);
+}
+.blob:nth-child(1) { animation-delay: 0s; width: 18px; height: 18px; }
+.blob:nth-child(2) { animation-delay: 0.5s; width: 14px; height: 14px; }
+.blob:nth-child(3) { animation-delay: 1s; width: 22px; height: 22px; }
+@keyframes blob-float {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0.6; }
+  50% { transform: translateY(-4px) scale(1.15); opacity: 0.9; }
+}
+.emotion-bar-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-pill);
+  filter: blur(12px);
+  transition: background 0.6s ease, opacity 0.6s ease;
+  pointer-events: none;
+}
+.emotion-meta { display: flex; justify-content: space-between; margin-top: var(--sp-xs); padding: 0 var(--sp-xs); }
+.emotion-label { font-size: var(--fs-sm); font-weight: 700; color: var(--c-text); }
+.emotion-level { font-size: var(--fs-sm); color: var(--c-text-soft); }
+
+/* ===== ACTIONS ===== */
+.actions { display: flex; gap: var(--sp-sm); overflow-x: auto; padding-bottom: var(--sp-xs); margin-bottom: var(--sp-md); }
+.action-btn { padding: 0.45rem 0.9rem; border-radius: var(--radius-pill); border: 1px solid var(--c-border); background: var(--c-bg); color: var(--c-text); font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; text-decoration: none; transition: border-color 0.15s; cursor: pointer; display: flex; align-items: center; gap: var(--sp-xs); }
+.action-btn:hover { border-color: var(--c-text); }
+.action-critical { border-color: var(--c-bad); color: var(--c-bad); }
+.action-critical:hover { background: var(--c-bad); color: white; }
+.badge { background: var(--c-text); color: var(--c-bg); font-size: var(--fs-xs); padding: 0.1rem 0.4rem; border-radius: var(--radius-pill); font-weight: 700; }
+
+/* ===== DR GEMINI AVATAR ===== */
+.dr-avatar { 
+  width: 40px; 
+  height: 40px; 
+  border-radius: 50%; 
+  background: var(--c-text); 
+  color: var(--c-bg); 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  font-size: var(--fs-sm); 
+  font-weight: 800; 
   flex-shrink: 0;
 }
-.voice-input-btn {
-  background: white;
-  color: #667eea;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-.voice-input-btn:hover:not(:disabled) {
-  background: #f5f5f5;
-  transform: translateY(-1px);
-}
-.voice-input-btn.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  animation: pulse-ring 1.5s ease-in-out infinite;
-}
-@keyframes pulse-ring {
-  0% {
-    box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.6);
-  }
-  70% {
-    box-shadow: 0 0 0 8px rgba(102, 126, 234, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(102, 126, 234, 0);
-  }
-}
-.voice-input-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.send-message-btn {
-  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-  color: white;
-  box-shadow: 0 3px 10px rgba(17, 153, 142, 0.3);
-}
-.send-message-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 5px 15px rgba(17, 153, 142, 0.4);
-}
-.send-message-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  background: #ccc;
-  box-shadow: none;
-}
+.dr-avatar-lg { width: 64px; height: 64px; font-size: var(--fs-lg); margin-bottom: var(--sp-md); }
+
+/* ===== CHAT ===== */
+.chat { background: var(--c-surface); border-radius: var(--radius-round); display: flex; flex-direction: column; height: 520px; margin-bottom: var(--sp-md); overflow: hidden; }
+@media (min-width: 640px) { .chat { height: 620px; } }
+.chat-head { display: flex; align-items: center; gap: var(--sp-sm); padding: var(--sp-md); border-bottom: 1px solid var(--c-border); }
+.chat-info { flex: 1; }
+.chat-title { font-size: var(--fs-md); font-weight: 800; margin: 0; }
+.chat-sub { font-size: var(--fs-xs); color: var(--c-text-soft); margin: 0; }
+.loc-indicator { display: flex; align-items: center; gap: 0.3rem; font-size: var(--fs-xs); color: var(--c-text-soft); }
+.loc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c-border); flex-shrink: 0; }
+.loc-dot.active { background: var(--c-good); }
+
+.chat-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+.chat-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: var(--sp-xl); text-align: center; }
+.empty-title { font-size: var(--fs-md); font-weight: 700; margin: 0 0 var(--sp-xs); }
+.empty-sub { font-size: var(--fs-sm); color: var(--c-text-soft); margin: 0 0 var(--sp-lg); max-width: 300px; }
+.prompts { display: flex; flex-wrap: wrap; gap: var(--sp-sm); justify-content: center; }
+.prompt-btn { padding: 0.4rem 0.75rem; border: 1px solid var(--c-border); border-radius: var(--radius-pill); background: var(--c-bg); color: var(--c-text-soft); font-size: var(--fs-sm); cursor: pointer; transition: border-color 0.15s, color 0.15s; }
+.prompt-btn:hover { border-color: var(--c-text); color: var(--c-text); }
+
+.msgs { flex: 1; overflow-y: auto; padding: var(--sp-md); display: flex; flex-direction: column; gap: var(--sp-sm); }
+.msgs::-webkit-scrollbar { width: 0; }
+.msg { display: flex; align-items: flex-end; gap: var(--sp-sm); animation: fadeUp 0.2s ease-out; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+.msg-user { flex-direction: row-reverse; }
+
+.msg-avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+.msg-avatar-user { background: var(--c-text); color: var(--c-bg); }
+.msg-avatar-ai { background: var(--c-surface); border: 1px solid var(--c-border); color: var(--c-text); }
+
+.msg-bubble { padding: 0.65rem 1rem; border-radius: 20px; max-width: 82%; word-break: break-word; }
+.msg-user .msg-bubble { background: var(--c-text); color: var(--c-bg); border-bottom-right-radius: 6px; }
+.msg-ai .msg-bubble { background: var(--c-bg); border: 1px solid var(--c-border); border-bottom-left-radius: 6px; }
+
+.msg-text { font-size: var(--fs-base); line-height: 1.55; }
+.msg-text strong { font-weight: 700; display: block; margin: 0.5rem 0 0.2rem; }
+.msg-text strong:first-child { margin-top: 0; }
+.msg-text em { font-style: italic; }
+.msg-tools { display: flex; gap: var(--sp-xs); margin-top: var(--sp-xs); justify-content: flex-end; }
+.tool-btn { background: none; border: none; cursor: pointer; font-size: var(--fs-sm); opacity: 0.4; padding: 0.15rem; border-radius: 50%; transition: opacity 0.15s; }
+.tool-btn:hover { opacity: 1; }
+
+.typing { display: flex; gap: 0.3rem; padding: 0.6rem 0.85rem; max-width: 60px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c-text-soft); animation: pulse 1.4s infinite ease-in-out both; }
+.dot:nth-child(1) { animation-delay: -0.32s; }
+.dot:nth-child(2) { animation-delay: -0.16s; }
+@keyframes pulse { 0%, 80%, 100% { transform: scale(0.5); opacity: 0.3; } 40% { transform: scale(1); opacity: 1; } }
+
+.chat-foot { display: flex; gap: var(--sp-sm); padding: var(--sp-sm) var(--sp-md); align-items: center; border-top: 1px solid var(--c-border); }
+.chat-input { flex: 1; background: var(--c-bg); border: 1px solid var(--c-border); border-radius: var(--radius-pill); padding: 0.6rem 1rem; font-size: var(--fs-base); color: var(--c-text); resize: none; outline: none; min-height: 42px; max-height: 100px; transition: border-color 0.15s; }
+.chat-input:focus { border-color: var(--c-text); }
+.chat-input::placeholder { color: var(--c-text-soft); }
+
+.circle-btn { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--c-border); background: var(--c-bg); color: var(--c-text); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; transition: all 0.15s; }
+.circle-btn:hover:not(:disabled) { border-color: var(--c-text); }
+.circle-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.circle-btn.active { background: var(--c-text); color: var(--c-bg); border-color: var(--c-text); }
+.circle-btn-send { background: var(--c-text); color: var(--c-bg); border-color: var(--c-text); font-weight: 800; font-size: 1.2rem; }
+.circle-btn-send:hover:not(:disabled) { opacity: 0.8; }
+
+/* ===== COMPOSE ===== */
+.compose { background: var(--c-surface); border-radius: var(--radius-round); padding: var(--sp-lg); margin-bottom: var(--sp-md); }
+.compose h3 { font-size: var(--fs-md); margin-bottom: var(--sp-sm); }
+.type-row { display: flex; flex-wrap: wrap; gap: var(--sp-sm); margin-bottom: var(--sp-sm); }
+.type-btn { padding: 0.35rem 0.75rem; border-radius: var(--radius-pill); border: 1px solid var(--c-border); background: transparent; color: var(--c-text-soft); font-size: var(--fs-sm); font-weight: 600; transition: all 0.15s; }
+.type-btn:hover { border-color: var(--c-text); color: var(--c-text); }
+.type-btn.active { background: var(--c-text); color: var(--c-bg); border-color: var(--c-text); }
+.compose-input { width: 100%; background: var(--c-bg); border: 1px solid var(--c-border); border-radius: 20px; padding: 0.65rem 1rem; font-size: var(--fs-base); color: var(--c-text); resize: none; outline: none; margin-bottom: var(--sp-sm); transition: border-color 0.15s; }
+.compose-input:focus { border-color: var(--c-text); }
+.compose-input::placeholder { color: var(--c-text-soft); }
+.compose-foot { display: flex; justify-content: space-between; align-items: center; }
+.compose-loc { display: flex; align-items: center; gap: 0.35rem; font-size: var(--fs-sm); color: var(--c-text-soft); }
+.err-msg { font-size: var(--fs-sm); color: var(--c-bad); padding: var(--sp-sm) var(--sp-md); border-radius: var(--radius-pill); margin-top: var(--sp-sm); border: 1px solid var(--c-bad); }
+.ok-msg { font-size: var(--fs-sm); color: var(--c-good); padding: var(--sp-sm) var(--sp-md); border-radius: var(--radius-pill); margin-top: var(--sp-sm); border: 1px solid var(--c-good); }
+
+/* ===== SECONDARY ===== */
+.secondary { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-md); }
+@media (max-width: 640px) { .secondary { grid-template-columns: 1fr; } }
+.card { background: var(--c-surface); border-radius: var(--radius-round); padding: var(--sp-md); }
+.sec-title { font-size: var(--fs-sm); font-weight: 600; color: var(--c-text-soft); margin-bottom: var(--sp-sm); display: flex; align-items: center; gap: var(--sp-sm); }
+.map-wrap { border-radius: 20px; overflow: hidden; }
+#map { height: 240px; width: 100%; }
+@media (max-width: 640px) { #map { height: 200px; } }
+
+/* ===== THREADS ===== */
+.empty-threads { text-align: center; padding: var(--sp-lg); color: var(--c-text-soft); font-size: var(--fs-sm); }
+.thread-list { display: flex; flex-direction: column; gap: var(--sp-sm); max-height: 380px; overflow-y: auto; }
+.thread { background: var(--c-bg); border-radius: 20px; padding: var(--sp-md); border: 1px solid var(--c-border); }
+.thread-own { border-left: 3px solid var(--c-text); }
+.thread-top { display: flex; justify-content: space-between; margin-bottom: var(--sp-xs); }
+.thread-type { font-size: var(--fs-xs); font-weight: 700; color: var(--c-bad); text-transform: capitalize; }
+.thread-dist { font-size: var(--fs-xs); color: var(--c-text-soft); }
+.thread-body { font-size: var(--fs-sm); margin: var(--sp-xs) 0; line-height: 1.5; }
+.thread-meta { display: flex; justify-content: space-between; font-size: var(--fs-xs); color: var(--c-text-soft); margin-bottom: var(--sp-sm); }
+.thread-resps { padding-top: var(--sp-sm); border-top: 1px solid var(--c-border); }
+.thread-resp { font-size: var(--fs-sm); color: var(--c-text-soft); margin-bottom: var(--sp-xs); padding-left: var(--sp-sm); border-left: 2px solid var(--c-text); }
+.resp-time { font-size: var(--fs-xs); color: var(--c-text-soft); margin-left: var(--sp-xs); }
+.reply-area { margin-top: var(--sp-sm); }
+.reply-input { width: 100%; background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 16px; padding: var(--sp-sm); color: var(--c-text); font-size: var(--fs-sm); resize: none; outline: none; margin-bottom: var(--sp-xs); }
+.reply-input:focus { border-color: var(--c-text); }
+.reply-input::placeholder { color: var(--c-text-soft); }
+.reply-btns { display: flex; gap: var(--sp-sm); justify-content: flex-end; }
+.thread-reply-btn { width: 100%; margin-top: var(--sp-xs); }
+
+/* ===== MODAL ===== */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; justify-content: center; align-items: center; z-index: 100; }
+@media (prefers-color-scheme: dark) { .overlay { background: rgba(0,0,0,0.7); } }
+.modal { background: var(--c-bg); border-radius: var(--radius-round); padding: var(--sp-lg); width: 90%; max-width: 440px; max-height: 90vh; overflow-y: auto; position: relative; }
+.modal-close { position: absolute; top: var(--sp-md); right: var(--sp-md); width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--c-border); background: var(--c-surface); color: var(--c-text-soft); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; cursor: pointer; }
+.modal-close:hover { border-color: var(--c-bad); color: var(--c-bad); }
 </style>

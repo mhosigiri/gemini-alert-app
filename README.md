@@ -26,38 +26,49 @@ Gemini Alert is a real-time emergency assistance platform. Users can broadcast d
 
 ## Environment Configuration
 
-Create `.env` files manually before running the project:
+Copy the example files first, then fill in real values:
 
 ```bash
-# Backend (.env)
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env.local
+```
+
+Backend values:
+
+```bash
 FLASK_ENV=development
 PORT=5001
 GROQ_API_KEY=your-groq-key
-# Optional overrides
-# GROQ_MODEL=gemma2-9b-it
-# GROQ_TEMPERATURE=0.4
-# GROQ_TOP_P=0.9
-# GROQ_MAX_TOKENS=1024
-FIREBASE_SERVICE_ACCOUNT_KEY_PATH=/absolute/path/to/serviceAccountKey.json
-# Optional: inline JSON alternative
-# FIREBASE_SERVICE_ACCOUNT_KEY={"type":"service_account",...}
-# Optional: comma-separated origins for CORS
-# ALLOWED_ORIGINS=http://localhost:8080,https://your-domain.com
+GROQ_MODEL=gemma2-9b-it
+GROQ_TEMPERATURE=0.4
+GROQ_TOP_P=0.9
+GROQ_MAX_TOKENS=1024
+GROQ_EMOTION_MODEL=gemma2-9b-it
+GROQ_EMOTION_TEMPERATURE=0
+GROQ_EMOTION_TOP_P=0.1
+GROQ_EMOTION_MAX_TOKENS=256
+MAX_DIRECT_MESSAGE_LENGTH=4000
+FIREBASE_SERVICE_ACCOUNT_KEY_PATH=/absolute/path/to/firebase-admin.json
+FIREBASE_SERVICE_ACCOUNT_KEY=
+ALLOWED_ORIGINS=https://gemini-alert-app.vercel.app/
+```
 
-# Frontend (.env.local)
+Frontend values:
+
+```bash
 VUE_APP_API_BASE_URL=http://localhost:5001
-VUE_APP_FIREBASE_API_KEY=...
-VUE_APP_FIREBASE_AUTH_DOMAIN=...
-VUE_APP_FIREBASE_PROJECT_ID=...
-VUE_APP_FIREBASE_STORAGE_BUCKET=...
-VUE_APP_FIREBASE_MESSAGING_SENDER_ID=...
-VUE_APP_FIREBASE_APP_ID=...
-VUE_APP_FIREBASE_MEASUREMENT_ID=...
-VUE_APP_GOOGLE_MAPS_API_KEY=...
+VUE_APP_FIREBASE_API_KEY=your-firebase-web-api-key
+VUE_APP_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+VUE_APP_FIREBASE_PROJECT_ID=your-project-id
+VUE_APP_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+VUE_APP_FIREBASE_MESSAGING_SENDER_ID=1234567890
+VUE_APP_FIREBASE_APP_ID=1:1234567890:web:abcdef123456
+VUE_APP_FIREBASE_MEASUREMENT_ID=
+VUE_APP_GOOGLE_MAPS_API_KEY=your-google-maps-api-key
 VUE_APP_GOOGLE_MAPS_MAP_ID=
 ```
 
-> ⚠️ **Secrets**: Never commit `.env*` files or `serviceAccountKey.json`. Load secrets from environment variables in production.
+`FIREBASE_SERVICE_ACCOUNT_KEY_PATH` should point to a JSON file stored outside the repo or in another untracked location. In Cloud Run, prefer `FIREBASE_SERVICE_ACCOUNT_KEY` via Secret Manager rather than shipping a credential file with the code. `ALLOWED_ORIGINS` accepts a comma-separated list of origins and trims trailing slashes; if you leave it empty, the backend will not allow cross-origin browser requests. Do not commit Firebase Admin credentials, `.env` files, or any Firebase messaging service worker with inline config.
 
 ---
 
@@ -93,7 +104,9 @@ npm run dev
 # Vue dev server runs on http://localhost:8080
 ```
 
-> The frontend proxies AI chat calls to the backend (`VUE_APP_API_BASE_URL`). Ensure both services are running for full functionality.
+The backend reads `backend/.env` and the frontend reads `frontend/.env.local`. If you copy the example files above and fill them in, the app should bootstrap without any committed secrets.
+
+The frontend proxies AI chat calls to the backend (`VUE_APP_API_BASE_URL`). Ensure both services are running for full functionality.
 
 ---
 
@@ -102,8 +115,10 @@ npm run dev
 ### Backend (Flask)
 
 - Recommended command: `gunicorn app:app --bind 0.0.0.0:5001 --workers 2`
-- Set environment variables in your hosting provider (`GROQ_API_KEY`, `FIREBASE_SERVICE_ACCOUNT_KEY*`, `ALLOWED_ORIGINS`, etc.)
-- Sample Vercel configuration is located at `vercel.json` in the project root
+- Deploy the `backend/` directory to Google Cloud Run using the included [backend/Dockerfile](/Users/arniskc/Desktop/gemini-alert-app/backend/Dockerfile)
+- Set environment variables in your hosting provider (`GROQ_API_KEY`, `FIREBASE_SERVICE_ACCOUNT_KEY*`, `ALLOWED_ORIGINS`, `PORT`, etc.)
+- For Cloud Run, inject `FIREBASE_SERVICE_ACCOUNT_KEY` from Secret Manager instead of relying on a JSON file in the repository or container image
+- Point `ALLOWED_ORIGINS` at your deployed frontend origins, for example `https://your-app.vercel.app,https://your-domain.com`
 
 ### Frontend (Vue)
 
@@ -114,7 +129,9 @@ npm run build:prod
 ```
 
 - Deploy `dist/` to static hosting (Vercel, Firebase Hosting, Netlify, S3, etc.)
+- The checked-in [vercel.json](/Users/arniskc/Desktop/gemini-alert-app/vercel.json) is now frontend-only. Set the Vercel project to this repo root and provide the `VUE_APP_*` environment variables in Vercel.
 - Configure the same environment variables in your hosting dashboard (prefixed with `VUE_APP_`)
+- Set `VUE_APP_API_BASE_URL` to your deployed Google Cloud backend URL
 - Ensure the Google Maps API key allows the deployed domain(s)
 
 ### Required Production Secrets
@@ -126,14 +143,24 @@ npm run build:prod
 | `VUE_APP_FIREBASE_*` | Web SDK config |
 | `VUE_APP_GOOGLE_MAPS_API_KEY` | Must include production domains in HTTP referrers |
 | `VUE_APP_API_BASE_URL` | HTTPS endpoint of the backend |
+| `GROQ_EMOTION_MODEL` | Optional override for message emotion analysis |
+| `GROQ_EMOTION_TEMPERATURE` | Defaults to `0` for deterministic emotion scoring |
+| `GROQ_EMOTION_TOP_P` | Defaults to `0.1` for deterministic emotion scoring |
+| `GROQ_EMOTION_MAX_TOKENS` | Caps the emotion-analysis response size |
+| `MAX_DIRECT_MESSAGE_LENGTH` | Maximum characters accepted per direct message |
 
 ---
 
 ## Pre-Deployment Checklist
 
 - [ ] Remove local virtual environments (`rm -rf venv .venv-backend`) before committing
-- [ ] Ensure `serviceAccountKey.json` is excluded from version control
-- [ ] Confirm `.env` values exist in your hosting provider
+- [ ] Ensure `serviceAccountKey.json` and any Firebase Admin JSON are excluded from version control
+- [ ] Ensure no Firebase messaging service worker with inline config is committed
+- [ ] Copy `backend/.env.example` to `backend/.env`
+- [ ] Copy `frontend/.env.example` to `frontend/.env.local`
+- [ ] Confirm the copied `.env` values exist in your hosting provider
+- [ ] Set `VUE_APP_API_BASE_URL` in Vercel to the deployed backend HTTPS URL
+- [ ] Set `ALLOWED_ORIGINS` in Google Cloud to the Vercel frontend origin(s)
 - [ ] Update Google Maps API key restrictions for localhost + production domains
 - [ ] Verify Firebase security rules meet production requirements
 - [ ] Verify Groq API quotas/billing
@@ -149,6 +176,14 @@ npm run build:prod
 - `POST /api/send-sos` – Broadcast SOS alert to nearby helpers
 - `POST /api/alerts/nearby` – Retrieve active alerts near the user
 - `POST /api/alerts/<alertId>/respond` – Record assistance responses
+- `POST /api/devices/register` – Register a push token for a user device
+- `DELETE /api/devices/<token>` – Remove a push token
+- `POST /api/conversations` – Create or fetch a direct conversation
+- `GET /api/conversations` – List the authenticated user's conversations
+- `GET /api/conversations/<conversationId>` – Fetch conversation metadata
+- `GET /api/conversations/<conversationId>/messages` – Fetch conversation messages
+- `POST /api/conversations/<conversationId>/messages` – Send a direct message
+- `POST /api/emotion/analyze` – Return deterministic emotion analysis for a message
 
 ---
 

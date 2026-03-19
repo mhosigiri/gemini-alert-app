@@ -14,7 +14,7 @@ export const askGemini = async (question) => {
     return response.data.response || 'No response from Gemini.';
   } catch (error) {
     console.error('Gemini API error:', error);
-    return `Sorry, there was an error connecting to Gemini. Please try again later.`;
+    return `Sorry, there was an error connecting to Dr Gemini. Please try again later.`;
   }
 }
 /**
@@ -69,7 +69,7 @@ export const askGeminiStream = async (question, onChunkReceived) => {
     }
   } catch (error) {
     console.error('Gemini streaming error:', error);
-    onChunkReceived(`Sorry, there was an error connecting to the Gemini API. Please try again later.`);
+    onChunkReceived(`Sorry, there was an error connecting to Dr Gemini. Please try again later.`);
   }
 }
 
@@ -79,5 +79,21 @@ export const getChatHistory = async () => {
     return response.data.history;
   } catch (error) {
     throw error;
+  }
+};
+
+export const analyzeEmotion = async (text, options = {}) => {
+  const payload = {
+    text,
+    priorScale: options.priorScale,
+    contextMessages: options.contextMessages || []
+  };
+
+  try {
+    const response = await api.post('/api/emotion/analyze', payload);
+    return response.data.analysis || null;
+  } catch (error) {
+    console.error('Emotion analysis error:', error);
+    return null;
   }
 };
